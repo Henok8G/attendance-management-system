@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Download, Edit2, Power, FileText } from 'lucide-react';
 import QRCode from 'qrcode';
@@ -119,9 +120,12 @@ export function WorkerModal({ worker, open, onClose, onUpdate }: WorkerModalProp
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-lg">
-              {worker.name.charAt(0)}
-            </div>
+            <Avatar className="w-12 h-12">
+              {worker.avatar_url && <AvatarImage src={worker.avatar_url} alt={worker.name} />}
+              <AvatarFallback className="bg-primary text-primary-foreground font-bold text-lg">
+                {worker.name.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
             <div>
               <span className="block">{worker.name}</span>
               <span className="text-sm font-normal text-muted-foreground capitalize">{worker.role}</span>
