@@ -2,6 +2,7 @@ import { Worker } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Edit2, Power, Download } from 'lucide-react';
 import QRCode from 'qrcode';
 
@@ -25,9 +26,12 @@ export function WorkerCard({ worker, onEdit, onToggleActive }: WorkerCardProps) 
     <Card className={`glass-card transition-all hover:shadow-lg ${!worker.is_active ? 'opacity-60' : ''}`}>
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-lg shrink-0">
-            {worker.name.charAt(0)}
-          </div>
+          <Avatar className="w-12 h-12 shrink-0">
+            {worker.avatar_url && <AvatarImage src={worker.avatar_url} alt={worker.name} />}
+            <AvatarFallback className="bg-primary text-primary-foreground font-bold text-lg">
+              {worker.name.charAt(0)}
+            </AvatarFallback>
+          </Avatar>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold truncate">{worker.name}</h3>
