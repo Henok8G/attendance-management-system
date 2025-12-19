@@ -17,25 +17,31 @@ export type Database = {
       admin_profiles: {
         Row: {
           avatar_url: string | null
+          bio: string | null
           created_at: string
           full_name: string | null
           id: string
+          phone: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
+          phone?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
+          phone?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -209,12 +215,52 @@ export type Database = {
         }
         Relationships: []
       }
+      worker_notes: {
+        Row: {
+          author_id: string
+          content: string
+          created_at: string
+          id: string
+          updated_at: string
+          worker_id: string
+        }
+        Insert: {
+          author_id: string
+          content: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          worker_id: string
+        }
+        Update: {
+          author_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_notes_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workers: {
         Row: {
           avatar_url: string | null
+          birthdate: string | null
+          contract_end_date: string | null
           created_at: string
           custom_end_time: string | null
           custom_start_time: string | null
+          description: string | null
+          employment_type: string | null
+          hire_date: string | null
           id: string
           is_active: boolean
           name: string
@@ -225,9 +271,14 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          birthdate?: string | null
+          contract_end_date?: string | null
           created_at?: string
           custom_end_time?: string | null
           custom_start_time?: string | null
+          description?: string | null
+          employment_type?: string | null
+          hire_date?: string | null
           id?: string
           is_active?: boolean
           name: string
@@ -238,9 +289,14 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          birthdate?: string | null
+          contract_end_date?: string | null
           created_at?: string
           custom_end_time?: string | null
           custom_start_time?: string | null
+          description?: string | null
+          employment_type?: string | null
+          hire_date?: string | null
           id?: string
           is_active?: boolean
           name?: string

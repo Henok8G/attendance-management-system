@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Worker, Attendance } from '@/lib/types';
 import { supabase } from '@/integrations/supabase/client';
-import { formatTime, calculateHours, getWeekDates, formatDate } from '@/lib/timezone';
+import { formatTime, calculateHours, getWeekDates, formatDate, formatToYYYYMMDD } from '@/lib/timezone';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Download, Edit2, Power, FileText } from 'lucide-react';
+import { Loader2, Download, Edit2, Power, FileText, ExternalLink } from 'lucide-react';
 import QRCode from 'qrcode';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -44,8 +45,9 @@ export function WorkerModal({ worker, open, onClose, onUpdate }: WorkerModalProp
     if (!worker) return;
     setLoading(true);
     const weekDates = getWeekDates(new Date());
-    const startDate = weekDates[0].toISOString().split('T')[0];
-    const endDate = weekDates[6].toISOString().split('T')[0];
+    // Use the timezone-aware formatter to get correct YYYY-MM-DD strings
+    const startDate = formatToYYYYMMDD(weekDates[0]);
+    const endDate = formatToYYYYMMDD(weekDates[6]);
 
     const { data } = await supabase
       .from('attendance')
@@ -99,11 +101,12 @@ export function WorkerModal({ worker, open, onClose, onUpdate }: WorkerModalProp
     if (!worker) return;
     const doc = new jsPDF();
     doc.text(`Weekly Report: ${worker.name}`, 14, 20);
+    const weekDates = getWeekDates(new Date());
     autoTable(doc, {
       startY: 30,
       head: [['Date', 'Check In', 'Check Out', 'Hours']],
-      body: getWeekDates(new Date()).map((d) => {
-        const dateStr = d.toISOString().split('T')[0];
+      body: weekDates.map((d) => {
+        const dateStr = formatToYYYYMMDD(d);
         const att = weeklyAttendance.find((a) => a.date === dateStr);
         return [formatDate(d), formatTime(att?.check_in), formatTime(att?.check_out), calculateHours(att?.check_in || null, att?.check_out || null)];
       }),
@@ -157,30 +160,33 @@ export function WorkerModal({ worker, open, onClose, onUpdate }: WorkerModalProp
               {loading ? (
                 <Loader2 className="w-6 h-6 animate-spin mx-auto" />
               ) : (
-                <div className="space-y-2">
-                  {weekDates.map((d) => {
-                    const dateStr = d.toISOString().split('T')[0];
-                    const att = weeklyAttendance.find((a) => a.date === dateStr);
-                    return (
-                      <div key={dateStr} className="flex items-center justify-between text-sm py-1 border-b border-border/50">
-                        <span className="font-medium">{formatDate(d)}</span>
-                        <span>{formatTime(att?.check_in)} - {formatTime(att?.check_out)}</span>
-                        <span className={att?.is_late ? 'text-status-late' : 'text-muted-foreground'}>{calculateHours(att?.check_in || null, att?.check_out || null)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <div className="flex flex-wrap gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Edit2 className="w-4 h-4 mr-1" />Edit</Button>
-                <Button variant="outline" size="sm" onClick={handleToggleActive}><Power className="w-4 h-4 mr-1" />{worker.is_active ? 'Deactivate' : 'Activate'}</Button>
-                <Button variant="outline" size="sm" onClick={downloadQR}><Download className="w-4 h-4 mr-1" />QR Code</Button>
-                <Button variant="outline" size="sm" onClick={exportPDF}><FileText className="w-4 h-4 mr-1" />Export PDF</Button>
+              <div className="space-y-2">
+                {weekDates.map((d) => {
+                  const dateStr = formatToYYYYMMDD(d);
+                  const att = weeklyAttendance.find((a) => a.date === dateStr);
+                  return (
+                    <div key={dateStr} className="flex items-center justify-between text-sm py-1 border-b border-border/50">
+                      <span className="font-medium">{formatDate(d)}</span>
+                      <span>{formatTime(att?.check_in)} - {formatTime(att?.check_out)}</span>
+                      <span className={att?.is_late ? 'text-status-late' : 'text-muted-foreground'}>{calculateHours(att?.check_in || null, att?.check_out || null)}</span>
+                    </div>
+                  );
+                })}
               </div>
-            </>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
+            )}
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Edit2 className="w-4 h-4 mr-1" />Edit</Button>
+              <Button variant="outline" size="sm" onClick={handleToggleActive}><Power className="w-4 h-4 mr-1" />{worker.is_active ? 'Deactivate' : 'Activate'}</Button>
+              <Button variant="outline" size="sm" onClick={downloadQR}><Download className="w-4 h-4 mr-1" />QR Code</Button>
+              <Button variant="outline" size="sm" onClick={exportPDF}><FileText className="w-4 h-4 mr-1" />Export PDF</Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/workers/${worker.id}`}><ExternalLink className="w-4 h-4 mr-1" />Full Profile</Link>
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </DialogContent>
+  </Dialog>
+);
 }

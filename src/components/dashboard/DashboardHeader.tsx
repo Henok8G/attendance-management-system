@@ -2,8 +2,9 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Scissors, Moon, Sun, Settings, Users, LogOut } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Scissors, Moon, Sun, Settings, Users, LogOut, User } from 'lucide-react';
 
 export function DashboardHeader() {
   const { profile, signOut } = useAuth();
@@ -39,13 +40,23 @@ export function DashboardHeader() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2">
-                <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-medium text-sm">
-                  {profile?.full_name?.charAt(0) || 'O'}
-                </div>
+                <Avatar className="w-8 h-8">
+                  {profile?.avatar_url && <AvatarImage src={profile.avatar_url} alt={profile.full_name || 'Owner'} />}
+                  <AvatarFallback className="bg-primary text-primary-foreground font-medium text-sm">
+                    {profile?.full_name?.charAt(0) || 'O'}
+                  </AvatarFallback>
+                </Avatar>
                 <span className="hidden sm:block">{profile?.full_name || 'Owner'}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link to="/profile" className="flex items-center">
+                  <User className="w-4 h-4 mr-2" />
+                  My Profile
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={signOut} className="text-destructive">
                 <LogOut className="w-4 h-4 mr-2" />
                 Sign Out

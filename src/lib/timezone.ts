@@ -1,40 +1,52 @@
-// Africa/Addis_Ababa is UTC+3
-const TIMEZONE_OFFSET = 3;
+// Africa/Addis_Ababa timezone utilities using date-fns-tz
+import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { addDays as dateFnsAddDays, startOfDay as dateFnsStartOfDay, differenceInYears, parseISO } from 'date-fns';
 
+const TIMEZONE = 'Africa/Addis_Ababa';
+
+/**
+ * Convert a UTC date to Africa/Addis_Ababa timezone
+ */
 export function toLocalTime(utcDate: string | Date): Date {
-  const date = new Date(utcDate);
-  return new Date(date.getTime() + TIMEZONE_OFFSET * 60 * 60 * 1000);
+  const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;
+  return toZonedTime(date, TIMEZONE);
 }
 
+/**
+ * Convert a local (Africa/Addis_Ababa) date to UTC
+ */
+export function toUTC(localDate: Date): Date {
+  return fromZonedTime(localDate, TIMEZONE);
+}
+
+/**
+ * Format time in Africa/Addis_Ababa timezone
+ */
 export function formatTime(date: string | Date | null): string {
   if (!date) return '—';
-  const localDate = toLocalTime(date);
-  return localDate.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  });
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return formatInTimeZone(d, TIMEZONE, 'hh:mm a');
 }
 
+/**
+ * Format date in Africa/Addis_Ababa timezone (short format)
+ */
 export function formatDate(date: string | Date): string {
-  const localDate = toLocalTime(date);
-  return localDate.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return formatInTimeZone(d, TIMEZONE, 'EEE, MMM d');
 }
 
+/**
+ * Format date in Africa/Addis_Ababa timezone (full format)
+ */
 export function formatFullDate(date: string | Date): string {
-  const localDate = toLocalTime(date);
-  return localDate.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return formatInTimeZone(d, TIMEZONE, 'EEEE, MMMM d, yyyy');
 }
 
+/**
+ * Calculate hours worked between check-in and check-out
+ */
 export function calculateHours(checkIn: string | null, checkOut: string | null): string {
   if (!checkIn || !checkOut) return '—';
   
@@ -47,29 +59,69 @@ export function calculateHours(checkIn: string | null, checkOut: string | null):
   return `${diffHours}:${diffMinutes.toString().padStart(2, '0')}`;
 }
 
+/**
+ * Get week dates starting from Monday, using Africa/Addis_Ababa timezone
+ */
 export function getWeekDates(date: Date): Date[] {
   const week: Date[] = [];
-  const current = new Date(date);
-  const day = current.getDay();
-  const diff = current.getDate() - day + (day === 0 ? -6 : 1);
+  const zonedDate = toZonedTime(date, TIMEZONE);
+  const day = zonedDate.getDay();
+  const diff = day === 0 ? -6 : 1 - day; // Monday = 1
   
-  current.setDate(diff);
+  const monday = dateFnsAddDays(zonedDate, diff);
+  const startOfMonday = dateFnsStartOfDay(monday);
   
   for (let i = 0; i < 7; i++) {
-    week.push(new Date(current));
-    current.setDate(current.getDate() + 1);
+    week.push(dateFnsAddDays(startOfMonday, i));
   }
   
   return week;
 }
 
+/**
+ * Get today's date in YYYY-MM-DD format using Africa/Addis_Ababa timezone
+ * This is the critical fix for the off-by-one date bug
+ */
 export function getToday(): string {
-  const now = new Date();
-  return now.toISOString().split('T')[0];
+  return formatInTimeZone(new Date(), TIMEZONE, 'yyyy-MM-dd');
 }
 
+/**
+ * Check if a date string matches today in Africa/Addis_Ababa timezone
+ */
 export function isToday(date: string): boolean {
   return date === getToday();
+}
+
+/**
+ * Convert a Date to YYYY-MM-DD string in Africa/Addis_Ababa timezone
+ * Use this when selecting dates from the datepicker
+ */
+export function formatToYYYYMMDD(date: Date): string {
+  return formatInTimeZone(date, TIMEZONE, 'yyyy-MM-dd');
+}
+
+/**
+ * Get start of day in Africa/Addis_Ababa timezone
+ */
+export function startOfDay(date: Date): Date {
+  const zonedDate = toZonedTime(date, TIMEZONE);
+  return dateFnsStartOfDay(zonedDate);
+}
+
+/**
+ * Add days to a date
+ */
+export function addDays(date: Date, days: number): Date {
+  return dateFnsAddDays(date, days);
+}
+
+/**
+ * Parse a YYYY-MM-DD string to a Date object, treating it as Africa/Addis_Ababa date
+ */
+export function parseYYYYMMDD(dateStr: string): Date {
+  // Parse as Africa/Addis_Ababa midnight
+  return toZonedTime(new Date(dateStr + 'T00:00:00'), TIMEZONE);
 }
 
 export function parseTimeToMinutes(time: string): number {
@@ -89,8 +141,47 @@ export function isLate(
   const startMinutes = parseTimeToMinutes(startTime);
   const lateThreshold = startMinutes + lateThresholdMinutes;
   
-  const checkIn = new Date(checkInTime);
+  // Convert check-in to Africa/Addis_Ababa time
+  const checkIn = toLocalTime(checkInTime);
   const checkInMinutes = checkIn.getHours() * 60 + checkIn.getMinutes();
   
   return checkInMinutes > lateThreshold;
+}
+
+/**
+ * Calculate age from birthdate
+ */
+export function calculateAge(birthdate: string | Date | null): number | null {
+  if (!birthdate) return null;
+  const birth = typeof birthdate === 'string' ? parseISO(birthdate) : birthdate;
+  return differenceInYears(new Date(), birth);
+}
+
+/**
+ * Format a date for display with relative info (e.g., contract duration)
+ */
+export function formatContractDuration(startDate: string | Date | null, endDate: string | Date | null): string {
+  if (!startDate || !endDate) return '—';
+  const start = typeof startDate === 'string' ? parseISO(startDate) : startDate;
+  const end = typeof endDate === 'string' ? parseISO(endDate) : endDate;
+  const months = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30));
+  if (months < 12) return `${months} month${months !== 1 ? 's' : ''}`;
+  const years = Math.floor(months / 12);
+  const remainingMonths = months % 12;
+  if (remainingMonths === 0) return `${years} year${years !== 1 ? 's' : ''}`;
+  return `${years} year${years !== 1 ? 's' : ''}, ${remainingMonths} month${remainingMonths !== 1 ? 's' : ''}`;
+}
+
+/**
+ * Get contract status
+ */
+export function getContractStatus(endDate: string | Date | null): 'active' | 'expiring' | 'expired' | null {
+  if (!endDate) return null;
+  const end = typeof endDate === 'string' ? parseISO(endDate) : endDate;
+  const now = new Date();
+  const daysUntilEnd = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  
+  if (daysUntilEnd < 0) return 'expired';
+  if (daysUntilEnd <= 30) return 'expiring';
+  return 'active';
 }
