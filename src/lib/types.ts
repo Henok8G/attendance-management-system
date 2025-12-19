@@ -1,5 +1,6 @@
 export type WorkerRole = 'barber' | 'cleaner' | 'receptionist' | 'manager';
 export type AttendanceStatus = 'in' | 'out' | 'late' | 'absent';
+export type EmploymentType = 'contract' | 'full_time';
 
 export interface Worker {
   id: string;
@@ -13,6 +14,12 @@ export interface Worker {
   custom_end_time: string | null;
   created_at: string;
   updated_at: string;
+  // Extended fields
+  birthdate: string | null;
+  description: string | null;
+  employment_type: EmploymentType | null;
+  contract_end_date: string | null;
+  hire_date: string | null;
 }
 
 export interface Attendance {
@@ -68,6 +75,17 @@ export interface AdminProfile {
   user_id: string;
   full_name: string | null;
   avatar_url: string | null;
+  phone: string | null;
+  bio: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkerNote {
+  id: string;
+  worker_id: string;
+  author_id: string;
+  content: string;
   created_at: string;
   updated_at: string;
 }

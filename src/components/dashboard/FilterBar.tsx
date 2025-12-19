@@ -3,8 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Search, CalendarIcon, AlertTriangle } from 'lucide-react';
-import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { parseYYYYMMDD, formatToYYYYMMDD } from '@/lib/timezone';
 
 interface FilterBarProps {
   searchQuery: string;
@@ -27,7 +27,8 @@ export function FilterBar({
   showIncidentsOnly,
   onShowIncidentsOnlyChange,
 }: FilterBarProps) {
-  const date = new Date(selectedDate + 'T00:00:00');
+  // Parse the date correctly in Africa/Addis_Ababa timezone to avoid off-by-one bugs
+  const date = parseYYYYMMDD(selectedDate);
 
   return (
     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -46,14 +47,14 @@ export function FilterBar({
           <PopoverTrigger asChild>
             <Button variant="outline" className="gap-2">
               <CalendarIcon className="w-4 h-4" />
-              <span className="hidden sm:inline">{format(date, 'MMM d, yyyy')}</span>
+              <span className="hidden sm:inline">{date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
             <Calendar
               mode="single"
               selected={date}
-              onSelect={(d) => d && onDateChange(d.toISOString().split('T')[0])}
+              onSelect={(d) => d && onDateChange(formatToYYYYMMDD(d))}
               initialFocus
               className={cn("p-3 pointer-events-auto")}
             />

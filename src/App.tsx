@@ -11,6 +11,8 @@ import AuthPage from "./pages/AuthPage";
 import Dashboard from "./pages/Dashboard";
 import SettingsPage from "./pages/SettingsPage";
 import WorkersPage from "./pages/WorkersPage";
+import WorkerProfilePage from "./pages/WorkerProfilePage";
+import OwnerProfilePage from "./pages/OwnerProfilePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +32,8 @@ const App = () => (
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/workers" element={<WorkersPage />} />
+                <Route path="/workers/:id" element={<WorkerProfilePage />} />
+                <Route path="/profile" element={<OwnerProfilePage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
