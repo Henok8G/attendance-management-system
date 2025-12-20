@@ -1,73 +1,75 @@
-# Welcome to your Lovable project
+CMAC Barbershop Management System
+Overview
 
-## Project info
+CMAC Barbershop is a management system designed to help a barbershop owner efficiently run daily operations. The system focuses on owner-managed workflows, making it easy to oversee appointments, barbers, services, and customers all in one place.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+This project is built to simplify barbershop management while keeping everything organized, accessible, and easy to use.
 
-## How can I edit this code?
+Features
 
-There are several ways of editing your application.
+Owner-managed dashboard
 
-**Use Lovable**
+Appointment scheduling and tracking
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+Barber management (availability and assignments)
 
-Changes made via Lovable will be committed automatically to this repo.
+Service and pricing management
 
-**Use your preferred IDE**
+Customer records
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Daily operations overview
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+User Roles
+Owner (Manager)
 
-Follow these steps:
+Manages barbers and services
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+Views and controls appointments
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+Oversees daily shop operations
 
-# Step 3: Install the necessary dependencies.
-npm i
+Updates pricing and availability
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+Purpose
 
-**Edit a file directly in GitHub**
+The purpose of this project is to provide a simple and effective solution for managing a barbershop where the owner takes full control of operations. It is designed to reduce manual work, improve organization, and enhance the overall customer experience.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Technologies Used
 
-**Use GitHub Codespaces**
+(Add your technologies here, e.g. HTML, CSS, JavaScript, React, Node.js, etc.)
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Installation
 
-## What technologies are used for this project?
+Clone the repository:
 
-This project is built with:
+git clone https://github.com/your-username/cmac-barbershop.git
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
 
-## How can I deploy this project?
+Navigate to the project folder:
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+cd cmac-barbershop
 
-## Can I connect a custom domain to my Lovable project?
 
-Yes, you can!
+Install dependencies:
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+npm install
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+Run the project:
+
+npm start
+
+Future Improvements
+
+Online customer booking
+
+Payment processing
+
+Reports and analytics
+
+Mobile-friendly interface
+
+Author
+
+CMAC Barbershop Project
+Developed by [Your Name]
