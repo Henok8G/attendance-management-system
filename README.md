@@ -1,19 +1,17 @@
 CMAC Barbershop Management System
 Overview
 
-CMAC Barbershop is a management system designed to help a barbershop owner efficiently run daily operations. The system focuses on owner-managed workflows, making it easy to oversee appointments, barbers, services, and customers all in one place.
+CMAC Barbershop is a modern barbershop management system designed to help a barbershop owner efficiently manage daily operations. The system is built for an owner-managed shop, giving full control over appointments, services, barbers, and customers from one central platform.
 
-This project is built to simplify barbershop management while keeping everything organized, accessible, and easy to use.
-
-Features
+Key Features
 
 Owner-managed dashboard
 
-Appointment scheduling and tracking
+Appointment scheduling & tracking
 
 Barber management (availability and assignments)
 
-Service and pricing management
+Service & pricing management
 
 Customer records
 
@@ -22,54 +20,60 @@ Daily operations overview
 User Roles
 Owner (Manager)
 
-Manages barbers and services
+Manage barbers and services
 
-Views and controls appointments
+View, create, and update appointments
 
-Oversees daily shop operations
+Oversee daily shop operations
 
-Updates pricing and availability
+Update pricing, availability, and schedules
 
-Purpose
+Project Purpose
 
-The purpose of this project is to provide a simple and effective solution for managing a barbershop where the owner takes full control of operations. It is designed to reduce manual work, improve organization, and enhance the overall customer experience.
+The purpose of this project is to provide a simple, efficient, and organized solution for managing a barbershop where the owner acts as the manager. It reduces manual work, improves organization, and enhances the customer experience.
 
 Technologies Used
 
-(Add your technologies here, e.g. HTML, CSS, JavaScript, React, Node.js, etc.)
+Frontend: (e.g. HTML, CSS, JavaScript, React)
+
+Backend: (e.g. Node.js, Express, Python, Java)
+
+Database: (e.g. MongoDB, MySQL)
 
 Installation
 
-Clone the repository:
+Clone the repository
 
-git clone https://github.com/your-username/cmac-barbershop.git
+git clone https://github.com/Henok8G
 
 
-Navigate to the project folder:
+Navigate to the project directory
 
 cd cmac-barbershop
 
 
-Install dependencies:
+Install dependencies
 
 npm install
 
 
-Run the project:
+Run the application
 
 npm start
 
-Future Improvements
+Future Enhancements
 
 Online customer booking
 
 Payment processing
 
-Reports and analytics
+Reports & analytics
 
-Mobile-friendly interface
+Mobile-friendly design
+
+Notifications & reminders
 
 Author
 
-CMAC Barbershop Project
-Developed by [Your Name]
+CMAC Barbershop Management System
+Developed by Henok.G
