@@ -13,6 +13,7 @@ import SettingsPage from "./pages/SettingsPage";
 import WorkersPage from "./pages/WorkersPage";
 import WorkerProfilePage from "./pages/WorkerProfilePage";
 import OwnerProfilePage from "./pages/OwnerProfilePage";
+import ScanPage from "./pages/ScanPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
                 <Route path="/workers" element={<WorkersPage />} />
                 <Route path="/workers/:id" element={<WorkerProfilePage />} />
                 <Route path="/profile" element={<OwnerProfilePage />} />
+                <Route path="/scan" element={<ScanPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
