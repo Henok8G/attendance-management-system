@@ -27,8 +27,9 @@ const statusClasses: Record<string, string> = {
 
 export function AttendanceTable({ attendance, workers, incidents, loading, selectedDate, onWorkerClick }: AttendanceTableProps) {
   const downloadQR = async (worker: Worker) => {
-    const qrData = `cmac:${worker.qr_secret}`;
-    const url = await QRCode.toDataURL(qrData, { width: 300, margin: 2 });
+    // Generate QR code with scan URL
+    const scanUrl = `${window.location.origin}/scan?secret=${encodeURIComponent(worker.qr_secret)}`;
+    const url = await QRCode.toDataURL(scanUrl, { width: 300, margin: 2 });
     const link = document.createElement('a');
     link.download = `${worker.name.replace(/\s+/g, '_')}_QR.png`;
     link.href = url;

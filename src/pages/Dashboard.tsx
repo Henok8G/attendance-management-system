@@ -120,8 +120,14 @@ export default function Dashboard() {
     incidents: incidents.length,
   };
 
+  // Filter workers first for search
+  const filteredWorkers = workers.filter((w) =>
+    w.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Filter attendance based on filtered workers and incidents
   const filteredAttendance = attendance.filter((a) => {
-    const matchesSearch = a.workers?.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = filteredWorkers.some((w) => w.id === a.worker_id);
     const matchesIncidents = !showIncidentsOnly || a.is_late || incidents.some((i) => i.worker_id === a.worker_id);
     return matchesSearch && matchesIncidents;
   });
@@ -173,7 +179,7 @@ export default function Dashboard() {
         >
           <AttendanceTable
             attendance={filteredAttendance}
-            workers={workers}
+            workers={filteredWorkers}
             incidents={incidents}
             loading={loading}
             selectedDate={selectedDate}
