@@ -2,3 +2,12 @@ project_id = "qlobfbzhjtzzdjqxcrhu"
 
 [functions.scan-attendance]
 verify_jwt = false
+
+[functions.generate-daily-qr]
+verify_jwt = false
+
+[functions.validate-qr-scan]
+verify_jwt = false
+
+[functions.scan-attendance]
+verify_jwt = false

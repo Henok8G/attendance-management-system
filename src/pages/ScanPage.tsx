@@ -7,13 +7,15 @@ import { Card } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 
 type ScanResult = {
-  success: boolean;
+  valid: boolean;
+  success?: boolean;
   action?: 'check_in' | 'check_out' | 'already_checked_out';
   status?: 'in' | 'out' | 'late';
   worker_name?: string;
   is_late?: boolean;
   message?: string;
   error?: string;
+  incident_logged?: boolean;
 };
 
 export default function ScanPage() {
@@ -22,31 +24,57 @@ export default function ScanPage() {
   const [result, setResult] = useState<ScanResult | null>(null);
 
   useEffect(() => {
+    // Support both old static QR (secret param) and new time-based QR (token param)
+    const qrToken = searchParams.get('token');
     const qrSecret = searchParams.get('secret');
     const scannerId = searchParams.get('scanner');
 
-    if (!qrSecret) {
-      setResult({ success: false, error: 'Invalid QR code - no secret provided' });
+    if (!qrToken && !qrSecret) {
+      setResult({ valid: false, error: 'Invalid QR code - no token provided' });
       setLoading(false);
       return;
     }
 
-    // Process the scan
     const processScan = async () => {
       try {
-        const { data, error } = await supabase.functions.invoke('scan-attendance', {
-          body: { qr_secret: qrSecret, scanner_id: scannerId },
-        });
+        // Use the new validate-qr-scan for token-based QR codes
+        if (qrToken) {
+          const { data, error } = await supabase.functions.invoke('validate-qr-scan', {
+            body: { qr_token: qrToken, scanner_id: scannerId },
+          });
 
-        if (error) {
-          console.error('Edge function error:', error);
-          setResult({ success: false, error: error.message || 'Failed to process scan' });
+          if (error) {
+            console.error('Edge function error:', error);
+            setResult({ valid: false, error: error.message || 'Failed to process scan' });
+          } else {
+            setResult(data as ScanResult);
+          }
         } else {
-          setResult(data as ScanResult);
+          // Fallback to old scan-attendance for static QR codes
+          const { data, error } = await supabase.functions.invoke('scan-attendance', {
+            body: { qr_secret: qrSecret, scanner_id: scannerId },
+          });
+
+          if (error) {
+            console.error('Edge function error:', error);
+            setResult({ valid: false, error: error.message || 'Failed to process scan' });
+          } else {
+            // Convert old format to new format
+            setResult({
+              valid: data.success,
+              success: data.success,
+              action: data.action,
+              status: data.status,
+              worker_name: data.worker_name,
+              is_late: data.is_late,
+              message: data.message,
+              error: data.error,
+            });
+          }
         }
       } catch (err) {
         console.error('Scan error:', err);
-        setResult({ success: false, error: 'Network error - please try again' });
+        setResult({ valid: false, error: 'Network error - please try again' });
       } finally {
         setLoading(false);
       }
@@ -55,30 +83,32 @@ export default function ScanPage() {
     processScan();
   }, [searchParams]);
 
+  const isSuccess = result?.valid || result?.success;
+
   const getStatusIcon = () => {
     if (loading) return <Loader2 className="w-16 h-16 animate-spin text-brand-gold" />;
-    if (!result?.success) return <XCircle className="w-16 h-16 text-status-late" />;
-    if (result.action === 'already_checked_out') return <AlertTriangle className="w-16 h-16 text-brand-gold" />;
-    if (result.is_late) return <Clock className="w-16 h-16 text-status-late" />;
+    if (!isSuccess) return <XCircle className="w-16 h-16 text-status-late" />;
+    if (result?.action === 'already_checked_out') return <AlertTriangle className="w-16 h-16 text-brand-gold" />;
+    if (result?.is_late) return <Clock className="w-16 h-16 text-status-late" />;
     return <CheckCircle className="w-16 h-16 text-status-in" />;
   };
 
   const getStatusMessage = () => {
     if (loading) return 'Processing scan...';
-    if (!result?.success) return result?.error || 'Scan failed';
-    if (result.action === 'already_checked_out') return result.message || 'Already checked out';
-    if (result.action === 'check_in') {
-      return result.is_late ? 'Checked In (Late)' : 'Checked In';
+    if (!isSuccess) return result?.error || 'Scan failed';
+    if (result?.action === 'already_checked_out') return result?.message || 'Already checked out';
+    if (result?.action === 'check_in') {
+      return result?.is_late ? 'Checked In (Late)' : 'Checked In';
     }
     return 'Checked Out';
   };
 
   const getStatusColor = () => {
     if (loading) return 'text-muted-foreground';
-    if (!result?.success) return 'text-status-late';
-    if (result.action === 'already_checked_out') return 'text-brand-gold';
-    if (result.is_late) return 'text-status-late';
-    if (result.action === 'check_in') return 'text-status-in';
+    if (!isSuccess) return 'text-status-late';
+    if (result?.action === 'already_checked_out') return 'text-brand-gold';
+    if (result?.is_late) return 'text-status-late';
+    if (result?.action === 'check_in') return 'text-status-in';
     return 'text-status-out';
   };
 
@@ -118,7 +148,7 @@ export default function ScanPage() {
           >
             {getStatusIcon()}
             
-            {result?.worker_name && result.success && (
+            {result?.worker_name && isSuccess && (
               <p className="text-xl font-semibold text-foreground">
                 {result.worker_name}
               </p>
@@ -128,7 +158,13 @@ export default function ScanPage() {
               {getStatusMessage()}
             </p>
 
-            {result?.success && result.action !== 'already_checked_out' && (
+            {result?.incident_logged && !isSuccess && (
+              <p className="text-sm text-status-late">
+                This incident has been logged.
+              </p>
+            )}
+
+            {isSuccess && result?.action !== 'already_checked_out' && (
               <p className="text-sm text-muted-foreground">
                 {new Date().toLocaleTimeString('en-US', {
                   hour: '2-digit',
