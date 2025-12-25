@@ -104,6 +104,50 @@ export type Database = {
           },
         ]
       }
+      daily_qr_codes: {
+        Row: {
+          created_at: string | null
+          date: string
+          id: string
+          qr_token: string
+          type: string
+          used_at: string | null
+          valid_from: string
+          valid_until: string
+          worker_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          id?: string
+          qr_token: string
+          type: string
+          used_at?: string | null
+          valid_from: string
+          valid_until: string
+          worker_id: string
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          id?: string
+          qr_token?: string
+          type?: string
+          used_at?: string | null
+          valid_from?: string
+          valid_until?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_qr_codes_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incidents: {
         Row: {
           created_at: string
@@ -259,6 +303,7 @@ export type Database = {
           custom_end_time: string | null
           custom_start_time: string | null
           description: string | null
+          email: string | null
           employment_type: string | null
           hire_date: string | null
           id: string
@@ -277,6 +322,7 @@ export type Database = {
           custom_end_time?: string | null
           custom_start_time?: string | null
           description?: string | null
+          email?: string | null
           employment_type?: string | null
           hire_date?: string | null
           id?: string
@@ -295,6 +341,7 @@ export type Database = {
           custom_end_time?: string | null
           custom_start_time?: string | null
           description?: string | null
+          email?: string | null
           employment_type?: string | null
           hire_date?: string | null
           id?: string

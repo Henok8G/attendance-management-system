@@ -20,6 +20,19 @@ export interface Worker {
   employment_type: EmploymentType | null;
   contract_end_date: string | null;
   hire_date: string | null;
+  email: string | null;
+}
+
+export interface DailyQRCode {
+  id: string;
+  worker_id: string;
+  date: string;
+  type: 'check_in' | 'check_out';
+  qr_token: string;
+  valid_from: string;
+  valid_until: string;
+  used_at: string | null;
+  created_at: string;
 }
 
 export interface Attendance {

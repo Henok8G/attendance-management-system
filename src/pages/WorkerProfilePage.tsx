@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Worker, Attendance, Incident, WorkerNote, WorkerRole, EmploymentType } from '@/lib/types';
+import { Worker, Attendance, Incident, WorkerNote, WorkerRole, EmploymentType, DailyQRCode } from '@/lib/types';
 import { 
   formatTime, calculateHours, getWeekDates, formatDate, formatFullDate, 
   calculateAge, formatContractDuration, getContractStatus, formatToYYYYMMDD 
@@ -20,7 +20,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { 
   ArrowLeft, Edit2, Power, Download, FileText, Plus, Trash2, 
-  Loader2, Calendar, Clock, Briefcase, AlertTriangle, Upload, X
+  Loader2, Calendar, Clock, Briefcase, AlertTriangle, Upload, X,
+  Mail, QrCode, Send, RefreshCw
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import jsPDF from 'jspdf';
@@ -37,11 +38,13 @@ export default function WorkerProfilePage() {
   const [weeklyAttendance, setWeeklyAttendance] = useState<Attendance[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [notes, setNotes] = useState<WorkerNote[]>([]);
+  const [todayQRCodes, setTodayQRCodes] = useState<DailyQRCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [generatingQR, setGeneratingQR] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
@@ -56,6 +59,7 @@ export default function WorkerProfilePage() {
     hire_date: '',
     custom_start_time: '',
     custom_end_time: '',
+    email: '',
   });
 
   useEffect(() => {
@@ -97,6 +101,7 @@ export default function WorkerProfilePage() {
       hire_date: w.hire_date || '',
       custom_start_time: w.custom_start_time || '',
       custom_end_time: w.custom_end_time || '',
+      email: w.email || '',
     });
 
     // Fetch weekly attendance
@@ -131,6 +136,16 @@ export default function WorkerProfilePage() {
       .order('created_at', { ascending: false });
 
     setNotes((notesData as WorkerNote[]) || []);
+
+    // Fetch today's QR codes
+    const today = formatToYYYYMMDD(new Date());
+    const { data: qrData } = await supabase
+      .from('daily_qr_codes')
+      .select('*')
+      .eq('worker_id', id)
+      .eq('date', today);
+
+    setTodayQRCodes((qrData as DailyQRCode[]) || []);
 
     setLoading(false);
   };
@@ -188,6 +203,7 @@ export default function WorkerProfilePage() {
       hire_date: formData.hire_date || null,
       custom_start_time: formData.custom_start_time || null,
       custom_end_time: formData.custom_end_time || null,
+      email: formData.email || null,
       avatar_url: avatarUrl,
     }).eq('id', worker.id);
 
@@ -212,13 +228,37 @@ export default function WorkerProfilePage() {
 
   const downloadQR = async () => {
     if (!worker) return;
-    // Generate QR code with scan URL
     const scanUrl = `${window.location.origin}/scan?secret=${encodeURIComponent(worker.qr_secret)}`;
     const url = await QRCode.toDataURL(scanUrl, { width: 300 });
     const link = document.createElement('a');
     link.download = `${worker.name.replace(/\s+/g, '_')}_QR.png`;
     link.href = url;
     link.click();
+  };
+
+  const generateDailyQR = async (type?: 'check_in' | 'check_out') => {
+    if (!worker) return;
+    setGeneratingQR(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-daily-qr', {
+        body: { worker_id: worker.id, type, force: true },
+      });
+      if (error) throw error;
+      toast({ title: 'QR codes generated', description: worker.email ? 'Email sent to worker.' : 'No email configured.' });
+      fetchWorkerData();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Failed to generate QR', variant: 'destructive' });
+    }
+    setGeneratingQR(false);
+  };
+
+  const getQRStatus = (type: 'check_in' | 'check_out') => {
+    const qr = todayQRCodes.find(q => q.type === type);
+    if (!qr) return { status: 'not_generated', label: 'Not Generated', color: 'text-muted-foreground' };
+    if (qr.used_at) return { status: 'used', label: 'Used', color: 'text-status-in' };
+    const now = new Date();
+    if (now > new Date(qr.valid_until)) return { status: 'expired', label: 'Expired', color: 'text-status-late' };
+    return { status: 'active', label: 'Active', color: 'text-brand-gold' };
   };
 
   const exportPDF = () => {
@@ -408,6 +448,7 @@ export default function WorkerProfilePage() {
                   )}
                   <div><Label>Start Time</Label><Input type="time" value={formData.custom_start_time} onChange={(e) => setFormData({ ...formData, custom_start_time: e.target.value })} /></div>
                   <div><Label>End Time</Label><Input type="time" value={formData.custom_end_time} onChange={(e) => setFormData({ ...formData, custom_end_time: e.target.value })} /></div>
+                  <div className="sm:col-span-2"><Label>Email (for QR delivery)</Label><Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="worker@example.com" /></div>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
