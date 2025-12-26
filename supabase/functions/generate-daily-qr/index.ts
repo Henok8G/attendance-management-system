@@ -226,7 +226,8 @@ Deno.serve(async (req) => {
         // Send email if worker has email and Resend is configured
         if (worker.email && resend) {
           try {
-            const scanUrl = `${supabaseUrl.replace('.supabase.co', '.lovable.app')}/scan?token=${qrToken}`;
+            // Include check_type in QR payload for scanner validation
+            const scanUrl = `${supabaseUrl.replace('.supabase.co', '.lovable.app')}/scan?token=${qrToken}&type=${genType}`;
             const typeLabel = genType === "check_in" ? "Check-In" : "Check-Out";
             
             await resend.emails.send({
