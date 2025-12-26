@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { qr_token, scanner_id } = await req.json();
+    const { qr_token, scanner_id, check_type } = await req.json();
 
     if (!qr_token) {
       console.error("Missing qr_token in request");
@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log("Validating QR token:", qr_token.substring(0, 10) + "...");
+    console.log("Validating QR token:", qr_token.substring(0, 10) + "...", "expected type:", check_type || "any");
 
     const now = new Date();
     const todayDate = getEthiopiaDate();
@@ -81,6 +81,28 @@ Deno.serve(async (req) => {
     const qrType = qrRecord.type as "check_in" | "check_out";
 
     console.log(`Found QR for worker: ${worker.name}, type: ${qrType}, date: ${qrRecord.date}`);
+
+    // Validate check_type matches if provided in request
+    if (check_type && check_type !== qrType) {
+      console.error(`Type mismatch: expected ${check_type}, got ${qrType}`);
+      
+      await supabase.from("incidents").insert({
+        worker_id: worker.id,
+        incident_type: "qr_type_mismatch",
+        description: `Worker ${worker.name} scanned ${qrType} QR but request expected ${check_type}`,
+        scanner_id: scanner_id || null,
+      });
+
+      return new Response(
+        JSON.stringify({ 
+          error: `This is a ${qrType.replace('_', '-')} QR code, not a ${check_type.replace('_', '-')} code.`, 
+          valid: false,
+          worker_name: worker.name,
+          incident_logged: true 
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Check if worker is active
     if (!worker.is_active) {

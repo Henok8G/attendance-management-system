@@ -28,6 +28,7 @@ export default function ScanPage() {
     const qrToken = searchParams.get('token');
     const qrSecret = searchParams.get('secret');
     const scannerId = searchParams.get('scanner');
+    const checkType = searchParams.get('type'); // check_in or check_out
 
     if (!qrToken && !qrSecret) {
       setResult({ valid: false, error: 'Invalid QR code - no token provided' });
@@ -40,7 +41,7 @@ export default function ScanPage() {
         // Use the new validate-qr-scan for token-based QR codes
         if (qrToken) {
           const { data, error } = await supabase.functions.invoke('validate-qr-scan', {
-            body: { qr_token: qrToken, scanner_id: scannerId },
+            body: { qr_token: qrToken, scanner_id: scannerId, check_type: checkType },
           });
 
           if (error) {
