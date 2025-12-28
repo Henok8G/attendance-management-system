@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     // Find the QR code record
     const { data: qrRecord, error: qrError } = await supabase
       .from("daily_qr_codes")
-      .select("*, workers(*)")
+      .select("*, workers(id, name, is_active, custom_start_time, custom_end_time)")
       .eq("qr_token", qr_token)
       .maybeSingle();
 
@@ -77,7 +77,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    const worker = qrRecord.workers;
+    const worker = qrRecord.workers as {
+      id: string;
+      name: string;
+      is_active: boolean;
+      custom_start_time: string | null;
+      custom_end_time: string | null;
+    };
     const qrType = qrRecord.type as "check_in" | "check_out";
 
     console.log(`Found QR for worker: ${worker.name}, type: ${qrType}, date: ${qrRecord.date}`);
@@ -277,34 +283,71 @@ Deno.serve(async (req) => {
       .update({ used_at: now.toISOString() })
       .eq("id", qrRecord.id);
 
-    // Get settings for late threshold
+    // Get settings for late threshold and end time
     const { data: settingsData } = await supabase
       .from("settings")
-      .select("default_start_time, late_threshold_minutes")
+      .select("default_start_time, default_end_time, late_threshold_minutes")
       .limit(1)
       .maybeSingle();
 
     const defaultStartTime = settingsData?.default_start_time || "08:00";
+    const defaultEndTime = settingsData?.default_end_time || "17:00";
     const lateThreshold = settingsData?.late_threshold_minutes || 15;
     const workerStartTime = worker.custom_start_time || defaultStartTime;
+    const workerEndTime = worker.custom_end_time || defaultEndTime;
+
+    // Get current time in Ethiopia timezone
+    const etTimeFormatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: TIMEZONE,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const currentTimeStr = etTimeFormatter.format(now);
+    const [currentHour, currentMinute] = currentTimeStr.split(":").map(Number);
+    const currentMinutes = currentHour * 60 + currentMinute;
+
+    const [startHour, startMinute] = workerStartTime.split(":").map(Number);
+    const startMinutes = startHour * 60 + startMinute;
+
+    const [endHour, endMinute] = workerEndTime.split(":").map(Number);
+    const endMinutes = endHour * 60 + endMinute;
 
     // Calculate if late (for check-in only)
     let isLate = false;
+    let isEarlyCheckout = false;
+
     if (qrType === "check_in") {
-      const etTimeFormatter = new Intl.DateTimeFormat("en-US", {
-        timeZone: TIMEZONE,
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
-      const currentTimeStr = etTimeFormatter.format(now);
-      const [currentHour, currentMinute] = currentTimeStr.split(":").map(Number);
-      const currentMinutes = currentHour * 60 + currentMinute;
-
-      const [startHour, startMinute] = workerStartTime.split(":").map(Number);
-      const startMinutes = startHour * 60 + startMinute;
-
       isLate = currentMinutes > startMinutes + lateThreshold;
+      
+      // Check-in is allowed from 30 minutes before start time onwards
+      const earliestCheckIn = startMinutes - 30;
+      if (currentMinutes < earliestCheckIn) {
+        console.error(`Check-in too early: current ${currentMinutes} min, earliest allowed ${earliestCheckIn} min`);
+        
+        await supabase.from("incidents").insert({
+          worker_id: worker.id,
+          incident_type: "early_checkin_attempt",
+          description: `Worker ${worker.name} attempted to check in at ${currentTimeStr}, but earliest allowed is 30 minutes before ${workerStartTime}`,
+          scanner_id: scanner_id || null,
+        });
+
+        return new Response(
+          JSON.stringify({ 
+            error: `Check-in not allowed yet. You can check in from 30 minutes before your start time (${workerStartTime}).`, 
+            valid: false,
+            worker_name: worker.name,
+            incident_logged: true 
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      // Check-out: detect early checkout (before scheduled end time)
+      if (currentMinutes < endMinutes) {
+        isEarlyCheckout = true;
+        console.log(`Early checkout detected for ${worker.name}: current ${currentTimeStr}, expected end ${workerEndTime}`);
+      }
     }
 
     // Update attendance
@@ -350,7 +393,18 @@ Deno.serve(async (req) => {
         })
         .eq("id", existingAttendance!.id);
 
-      console.log(`Check-out recorded for ${worker.name}`);
+      // Create early_checkout incident if applicable
+      if (isEarlyCheckout) {
+        await supabase.from("incidents").insert({
+          worker_id: worker.id,
+          incident_type: "early_checkout",
+          description: `Worker ${worker.name} checked out at ${currentTimeStr}, before scheduled end time ${workerEndTime}`,
+          scanner_id: scanner_id || null,
+        });
+        console.log(`Early checkout incident created for ${worker.name}`);
+      }
+
+      console.log(`Check-out recorded for ${worker.name}, early: ${isEarlyCheckout}`);
     }
 
     return new Response(
@@ -361,6 +415,7 @@ Deno.serve(async (req) => {
         status: newStatus,
         worker_name: worker.name,
         is_late: isLate,
+        is_early_checkout: isEarlyCheckout,
         timestamp: nowISO,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
