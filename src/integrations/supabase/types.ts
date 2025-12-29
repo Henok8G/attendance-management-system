@@ -203,6 +203,7 @@ export type Database = {
           is_active: boolean
           location: string | null
           name: string
+          owner_id: string | null
         }
         Insert: {
           created_at?: string
@@ -210,6 +211,7 @@ export type Database = {
           is_active?: boolean
           location?: string | null
           name: string
+          owner_id?: string | null
         }
         Update: {
           created_at?: string
@@ -217,6 +219,7 @@ export type Database = {
           is_active?: boolean
           location?: string | null
           name?: string
+          owner_id?: string | null
         }
         Relationships: []
       }
@@ -309,6 +312,7 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          owner_id: string | null
           qr_secret: string
           role: Database["public"]["Enums"]["worker_role"]
           salary: string | null
@@ -328,6 +332,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          owner_id?: string | null
           qr_secret?: string
           role?: Database["public"]["Enums"]["worker_role"]
           salary?: string | null
@@ -347,6 +352,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          owner_id?: string | null
           qr_secret?: string
           role?: Database["public"]["Enums"]["worker_role"]
           salary?: string | null
@@ -359,7 +365,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_worker_owner: { Args: { _worker_id: string }; Returns: boolean }
     }
     Enums: {
       attendance_status: "in" | "out" | "late" | "absent"
