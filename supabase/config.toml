@@ -1,10 +1,10 @@
 project_id = "qlobfbzhjtzzdjqxcrhu"
 
-[functions.scan-attendance]
-verify_jwt = false
-
 [functions.generate-daily-qr]
-verify_jwt = false
+verify_jwt = true
 
 [functions.validate-qr-scan]
-verify_jwt = false
+verify_jwt = true
+
+[functions.scan-attendance]
+verify_jwt = true

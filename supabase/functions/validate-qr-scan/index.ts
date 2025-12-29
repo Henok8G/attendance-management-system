@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.89.0";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,6 +7,13 @@ const corsHeaders = {
 };
 
 const TIMEZONE = "Africa/Addis_Ababa";
+
+// Input validation schema
+const RequestSchema = z.object({
+  qr_token: z.string().min(32).max(128),
+  scanner_id: z.string().uuid().optional(),
+  check_type: z.enum(["check_in", "check_out"]).optional(),
+});
 
 function getEthiopiaDate(): string {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -24,28 +32,73 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // ========== AUTHENTICATION ==========
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      console.error("Missing Authorization header");
+      return new Response(
+        JSON.stringify({ error: "Missing Authorization header", valid: false }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Verify JWT using anon key client with user's token
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: authError } = await authClient.auth.getUser();
+    if (authError || !user) {
+      console.error("Invalid or expired token:", authError?.message);
+      return new Response(
+        JSON.stringify({ error: "Invalid or expired token", valid: false }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Authenticated scanner user: ${user.id}`);
+
+    // Use service role client for database operations (bypass RLS)
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { qr_token, scanner_id, check_type } = await req.json();
-
-    if (!qr_token) {
-      console.error("Missing qr_token in request");
+    // ========== INPUT VALIDATION ==========
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
       return new Response(
-        JSON.stringify({ error: "Missing qr_token", valid: false }),
+        JSON.stringify({ error: "Invalid JSON body", valid: false }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const parseResult = RequestSchema.safeParse(body);
+    if (!parseResult.success) {
+      console.error("Input validation failed:", parseResult.error.errors);
+      return new Response(
+        JSON.stringify({ 
+          error: "Invalid input", 
+          details: parseResult.error.errors.map(e => e.message),
+          valid: false 
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { qr_token, scanner_id, check_type } = parseResult.data;
 
     console.log("Validating QR token:", qr_token.substring(0, 10) + "...", "expected type:", check_type || "any");
 
     const now = new Date();
     const todayDate = getEthiopiaDate();
 
-    // Find the QR code record
+    // Find the QR code record (using dynamic token from daily_qr_codes)
     const { data: qrRecord, error: qrError } = await supabase
       .from("daily_qr_codes")
-      .select("*, workers(id, name, is_active, custom_start_time, custom_end_time)")
+      .select("*, workers(id, name, is_active, custom_start_time, custom_end_time, owner_id)")
       .eq("qr_token", qr_token)
       .maybeSingle();
 
@@ -83,6 +136,7 @@ Deno.serve(async (req) => {
       is_active: boolean;
       custom_start_time: string | null;
       custom_end_time: string | null;
+      owner_id: string | null;
     };
     const qrType = qrRecord.type as "check_in" | "check_out";
 
@@ -138,7 +192,7 @@ Deno.serve(async (req) => {
       
       await supabase.from("incidents").insert({
         worker_id: worker.id,
-        incident_type: "wrong_date_qr",
+        incident_type: "expired_qr",
         description: `Worker ${worker.name} used QR from ${qrRecord.date} on ${todayDate}`,
         scanner_id: scanner_id || null,
       });

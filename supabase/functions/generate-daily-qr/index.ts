@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.89.0";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,6 +8,19 @@ const corsHeaders = {
 };
 
 const TIMEZONE = "Africa/Addis_Ababa";
+
+// Input validation schema
+const RequestSchema = z.object({
+  worker_id: z.string().uuid().optional(),
+  type: z.enum(["check_in", "check_out"]).optional(),
+  force: z.boolean().optional().default(false),
+});
+
+// UUID validation helper
+function isValidUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
 
 // Generate cryptographically random token
 function generateSecureToken(): string {
@@ -76,14 +90,87 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    
+
+    // ========== AUTHENTICATION ==========
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      console.error("Missing Authorization header");
+      return new Response(
+        JSON.stringify({ error: "Missing Authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Verify JWT using anon key client with user's token
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: authError } = await authClient.auth.getUser();
+    if (authError || !user) {
+      console.error("Invalid or expired token:", authError?.message);
+      return new Response(
+        JSON.stringify({ error: "Invalid or expired token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Authenticated user: ${user.id}`);
+
+    // Use service role client for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
-    const body = await req.json().catch(() => ({}));
-    const { worker_id, type, force } = body;
+    // ========== INPUT VALIDATION ==========
+    let body: unknown;
+    try {
+      body = await req.json().catch(() => ({}));
+    } catch {
+      body = {};
+    }
+
+    const parseResult = RequestSchema.safeParse(body);
+    if (!parseResult.success) {
+      console.error("Input validation failed:", parseResult.error.errors);
+      return new Response(
+        JSON.stringify({ 
+          error: "Invalid input", 
+          details: parseResult.error.errors.map(e => e.message) 
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { worker_id, type, force } = parseResult.data;
+
+    // ========== OWNERSHIP VALIDATION ==========
+    // Verify the user owns the workers they're trying to generate QR codes for
+    if (worker_id) {
+      const { data: worker, error: workerError } = await supabase
+        .from("workers")
+        .select("owner_id")
+        .eq("id", worker_id)
+        .maybeSingle();
+
+      if (workerError || !worker) {
+        console.error("Worker not found:", worker_id);
+        return new Response(
+          JSON.stringify({ error: "Worker not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (worker.owner_id !== user.id) {
+        console.error(`User ${user.id} not authorized for worker ${worker_id}`);
+        return new Response(
+          JSON.stringify({ error: "Not authorized for this worker" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     // Get today's date in Ethiopia
     const todayDate = getEthiopiaDate();
@@ -98,17 +185,19 @@ Deno.serve(async (req) => {
     const { data: settingsData } = await supabase
       .from("settings")
       .select("default_start_time, default_end_time")
+      .eq("owner_id", user.id)
       .limit(1)
       .maybeSingle();
 
     const defaultStartTime = settingsData?.default_start_time || "08:00";
     const defaultEndTime = settingsData?.default_end_time || "17:00";
 
-    // Build worker query
+    // Build worker query - only get workers owned by this user
     let workersQuery = supabase
       .from("workers")
       .select("id, name, email, custom_start_time, custom_end_time, is_active")
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .eq("owner_id", user.id);
 
     if (worker_id) {
       workersQuery = workersQuery.eq("id", worker_id);
@@ -128,7 +217,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const results: any[] = [];
+    const results: unknown[] = [];
 
     for (const worker of workers) {
       const workerStartTime = worker.custom_start_time || defaultStartTime;
@@ -143,16 +232,12 @@ Deno.serve(async (req) => {
       if (type) {
         qrType = type;
       } else if (force) {
-        // Force generate both
         qrType = null; // Will handle both below
       } else {
         // Auto-determine based on time
-        // Generate check-in QR 30 minutes before start time until 2 hours after
         if (currentMinutes >= startTimeMinutes - 30 && currentMinutes <= startTimeMinutes + 120) {
           qrType = "check_in";
-        }
-        // Generate check-out QR from 2 hours before end time until 2 hours after
-        else if (currentMinutes >= endTimeMinutes - 120 && currentMinutes <= endTimeMinutes + 120) {
+        } else if (currentMinutes >= endTimeMinutes - 120 && currentMinutes <= endTimeMinutes + 120) {
           qrType = "check_out";
         }
       }
@@ -226,7 +311,6 @@ Deno.serve(async (req) => {
         // Send email if worker has email and Resend is configured
         if (worker.email && resend) {
           try {
-            // Include check_type in QR payload for scanner validation
             const scanUrl = `${supabaseUrl.replace('.supabase.co', '.lovable.app')}/scan?token=${qrToken}&type=${genType}`;
             const typeLabel = genType === "check_in" ? "Check-In" : "Check-Out";
             
@@ -273,10 +357,11 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, results }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error generating QR codes:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(
-      JSON.stringify({ error: error?.message || "Unknown error" }),
+      JSON.stringify({ error: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
