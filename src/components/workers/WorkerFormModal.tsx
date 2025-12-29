@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Worker, WorkerRole } from '@/lib/types';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,7 @@ interface WorkerFormModalProps {
 
 export function WorkerFormModal({ open, onClose, worker, onSuccess }: WorkerFormModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({ name: '', role: 'barber' as WorkerRole, salary: '' });
@@ -109,6 +111,7 @@ export function WorkerFormModal({ open, onClose, worker, onSuccess }: WorkerForm
         name: formData.name,
         role: formData.role,
         salary: formData.salary || null,
+        owner_id: user?.id,
       }).select().single();
 
       if (error || !newWorker) {
