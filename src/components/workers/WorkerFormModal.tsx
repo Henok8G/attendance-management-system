@@ -73,8 +73,9 @@ export function WorkerFormModal({ open, onClose, worker, onSuccess }: WorkerForm
       return worker?.avatar_url || null;
     }
 
-    const { data: urlData } = supabase.storage.from('worker-photos').getPublicUrl(fileName);
-    return urlData.publicUrl;
+    // Store just the file path, not the full URL
+    // The client will generate signed URLs as needed
+    return fileName;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

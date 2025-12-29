@@ -3,10 +3,9 @@ import { Worker } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { SecureAvatar } from '@/components/ui/SecureAvatar';
 import { Edit2, Power, Download } from 'lucide-react';
 import QRCode from 'qrcode';
-
 interface WorkerCardProps {
   worker: Worker;
   onEdit: () => void;
@@ -30,12 +29,12 @@ export function WorkerCard({ worker, onEdit, onToggleActive }: WorkerCardProps) 
       <CardContent className="p-4">
         <Link to={`/workers/${worker.id}`} className="block">
           <div className="flex items-start gap-3 cursor-pointer hover:opacity-80 transition-opacity">
-            <Avatar className="w-12 h-12 shrink-0">
-              {worker.avatar_url && <AvatarImage src={worker.avatar_url} alt={worker.name} />}
-              <AvatarFallback className="bg-primary text-primary-foreground font-bold text-lg">
-                {worker.name.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
+            <SecureAvatar
+              avatarUrl={worker.avatar_url}
+              fallbackText={worker.name}
+              alt={worker.name}
+              className="w-12 h-12 shrink-0"
+            />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold truncate">{worker.name}</h3>

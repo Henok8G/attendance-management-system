@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { SecureAvatar } from '@/components/ui/SecureAvatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Scissors, Moon, Sun, Settings, Users, LogOut, User } from 'lucide-react';
 
@@ -40,12 +40,13 @@ export function DashboardHeader() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2">
-                <Avatar className="w-8 h-8">
-                  {profile?.avatar_url && <AvatarImage src={profile.avatar_url} alt={profile.full_name || 'Owner'} />}
-                  <AvatarFallback className="bg-primary text-primary-foreground font-medium text-sm">
-                    {profile?.full_name?.charAt(0) || 'O'}
-                  </AvatarFallback>
-                </Avatar>
+                <SecureAvatar
+                  avatarUrl={profile?.avatar_url}
+                  fallbackText={profile?.full_name || 'Owner'}
+                  alt={profile?.full_name || 'Owner'}
+                  className="w-8 h-8"
+                  fallbackClassName="bg-primary text-primary-foreground font-medium text-sm"
+                />
                 <span className="hidden sm:block">{profile?.full_name || 'Owner'}</span>
               </Button>
             </DropdownMenuTrigger>

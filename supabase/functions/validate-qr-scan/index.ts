@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
 
     const { qr_token, scanner_id, check_type } = parseResult.data;
 
-    console.log("Validating QR token:", qr_token.substring(0, 10) + "...", "expected type:", check_type || "any");
+    console.log("Validating QR token for", check_type || "any", "action");
 
     const now = new Date();
     const todayDate = getEthiopiaDate();
@@ -112,11 +112,11 @@ Deno.serve(async (req) => {
 
     // QR token not found
     if (!qrRecord) {
-      console.error("QR token not found:", qr_token.substring(0, 10) + "...");
+      console.error("QR token not found");
       
       await supabase.from("incidents").insert({
         incident_type: "invalid_qr",
-        description: `Invalid QR token attempted: ${qr_token.substring(0, 16)}...`,
+        description: "Invalid QR token attempted",
         scanner_id: scanner_id || null,
       });
 

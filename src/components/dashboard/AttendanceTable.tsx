@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Card } from '@/components/ui/card';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { SecureAvatar } from '@/components/ui/SecureAvatar';
 import { Eye, Download, Loader2, AlertTriangle } from 'lucide-react';
 import QRCode from 'qrcode';
 
@@ -96,12 +96,13 @@ export function AttendanceTable({ attendance, workers, incidents, loading, selec
                 <TableRow key={worker.id} className={incident ? 'bg-status-late/5' : ''}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <Avatar className="w-9 h-9">
-                        {worker.avatar_url && <AvatarImage src={worker.avatar_url} alt={worker.name} />}
-                        <AvatarFallback className="bg-primary text-primary-foreground font-medium text-sm">
-                          {worker.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <SecureAvatar
+                        avatarUrl={worker.avatar_url}
+                        fallbackText={worker.name}
+                        alt={worker.name}
+                        className="w-9 h-9"
+                        fallbackClassName="bg-primary text-primary-foreground font-medium text-sm"
+                      />
                       <div>
                         <p className="font-medium">{worker.name}</p>
                         {incident && (
