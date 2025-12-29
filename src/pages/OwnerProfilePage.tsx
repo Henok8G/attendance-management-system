@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminProfile } from '@/lib/types';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { SecureAvatarWithPreview } from '@/components/ui/SecureAvatarWithPreview';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -69,9 +69,10 @@ export default function OwnerProfilePage() {
 
     setUploading(true);
     const fileExt = photoFile.name.split('.').pop();
-    const fileName = `admin_${user.id}.${fileExt}`;
+    // Use user.id as prefix to satisfy storage RLS policy
+    const fileName = `${user.id}.${fileExt}`;
 
-    // Try to use worker-photos bucket for admin photos too (reuse existing bucket)
+    // Use worker-photos bucket for admin photos too (reuse existing bucket)
     const { error: uploadError } = await supabase.storage
       .from('worker-photos')
       .upload(fileName, photoFile, { upsert: true });
@@ -83,8 +84,9 @@ export default function OwnerProfilePage() {
       return profile?.avatar_url || null;
     }
 
-    const { data: urlData } = supabase.storage.from('worker-photos').getPublicUrl(fileName);
-    return urlData.publicUrl;
+    // Store just the file path, not the full URL
+    // The client will generate signed URLs as needed
+    return fileName;
   };
 
   const handleSave = async () => {
@@ -160,12 +162,13 @@ export default function OwnerProfilePage() {
             <CardHeader><CardTitle className="flex items-center gap-2"><User className="w-5 h-5" />Profile Photo</CardTitle></CardHeader>
             <CardContent>
               <div className="flex items-center gap-4">
-                <Avatar className="w-24 h-24">
-                  {photoPreview && <AvatarImage src={photoPreview} alt="Profile" />}
-                  <AvatarFallback className="bg-primary text-primary-foreground font-bold text-2xl">
-                    {formData.full_name?.charAt(0) || user?.email?.charAt(0) || '?'}
-                  </AvatarFallback>
-                </Avatar>
+                <SecureAvatarWithPreview
+                  avatarUrl={profile?.avatar_url}
+                  localPreview={photoPreview}
+                  fallbackText={formData.full_name || user?.email || '?'}
+                  alt="Profile"
+                  className="w-24 h-24"
+                />
                 <div className="flex flex-col gap-2">
                   <input
                     ref={fileInputRef}

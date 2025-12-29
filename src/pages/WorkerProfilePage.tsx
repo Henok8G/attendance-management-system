@@ -9,7 +9,7 @@ import {
   calculateAge, formatContractDuration, getContractStatus, formatToYYYYMMDD 
 } from '@/lib/timezone';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { SecureAvatarWithPreview } from '@/components/ui/SecureAvatarWithPreview';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -180,8 +180,9 @@ export default function WorkerProfilePage() {
       return worker?.avatar_url || null;
     }
 
-    const { data: urlData } = supabase.storage.from('worker-photos').getPublicUrl(fileName);
-    return urlData.publicUrl;
+    // Store just the file path, not the full URL
+    // The client will generate signed URLs as needed
+    return fileName;
   };
 
   const handleSave = async () => {
@@ -342,14 +343,13 @@ export default function WorkerProfilePage() {
             <CardContent className="pt-6">
               <div className="flex flex-col sm:flex-row items-start gap-4">
                 <div className="relative">
-                  <Avatar className="w-24 h-24">
-                    {(photoPreview || worker.avatar_url) && (
-                      <AvatarImage src={photoPreview || worker.avatar_url || ''} alt={worker.name} />
-                    )}
-                    <AvatarFallback className="bg-primary text-primary-foreground font-bold text-2xl">
-                      {worker.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <SecureAvatarWithPreview
+                    avatarUrl={worker.avatar_url}
+                    localPreview={photoPreview}
+                    fallbackText={worker.name}
+                    alt={worker.name}
+                    className="w-24 h-24"
+                  />
                   {editing && (
                     <Button
                       type="button"
