@@ -11,8 +11,8 @@ const TIMEZONE = "Africa/Addis_Ababa";
 // Input validation schema
 const RequestSchema = z.object({
   qr_token: z.string().min(32).max(128),
-  scanner_id: z.string().uuid().optional(),
-  check_type: z.enum(["check_in", "check_out"]).optional(),
+  scanner_id: z.string().uuid().nullish().transform(val => val || undefined),
+  check_type: z.enum(["check_in", "check_out"]).nullish().transform(val => val || undefined),
 });
 
 function getEthiopiaDate(): string {
