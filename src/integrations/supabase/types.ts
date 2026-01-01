@@ -56,6 +56,7 @@ export type Database = {
           id: string
           is_late: boolean
           notes: string | null
+          owner_id: string | null
           scanner_id: string | null
           status: Database["public"]["Enums"]["attendance_status"]
           updated_at: string
@@ -69,6 +70,7 @@ export type Database = {
           id?: string
           is_late?: boolean
           notes?: string | null
+          owner_id?: string | null
           scanner_id?: string | null
           status?: Database["public"]["Enums"]["attendance_status"]
           updated_at?: string
@@ -82,6 +84,7 @@ export type Database = {
           id?: string
           is_late?: boolean
           notes?: string | null
+          owner_id?: string | null
           scanner_id?: string | null
           status?: Database["public"]["Enums"]["attendance_status"]
           updated_at?: string
@@ -109,6 +112,7 @@ export type Database = {
           created_at: string | null
           date: string
           id: string
+          owner_id: string | null
           qr_token: string
           type: string
           used_at: string | null
@@ -120,6 +124,7 @@ export type Database = {
           created_at?: string | null
           date: string
           id?: string
+          owner_id?: string | null
           qr_token: string
           type: string
           used_at?: string | null
@@ -131,6 +136,7 @@ export type Database = {
           created_at?: string | null
           date?: string
           id?: string
+          owner_id?: string | null
           qr_token?: string
           type?: string
           used_at?: string | null
@@ -155,6 +161,7 @@ export type Database = {
           id: string
           incident_type: string
           occurred_at: string
+          owner_id: string | null
           resolved: boolean
           scanner_id: string | null
           worker_id: string | null
@@ -165,6 +172,7 @@ export type Database = {
           id?: string
           incident_type: string
           occurred_at?: string
+          owner_id?: string | null
           resolved?: boolean
           scanner_id?: string | null
           worker_id?: string | null
@@ -175,6 +183,7 @@ export type Database = {
           id?: string
           incident_type?: string
           occurred_at?: string
+          owner_id?: string | null
           resolved?: boolean
           scanner_id?: string | null
           worker_id?: string | null
