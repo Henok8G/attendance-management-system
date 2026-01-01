@@ -118,6 +118,7 @@ Deno.serve(async (req) => {
         incident_type: "invalid_qr",
         description: "Invalid QR token attempted",
         scanner_id: scanner_id || null,
+        worker_id: null,
       });
 
       return new Response(
@@ -139,6 +140,7 @@ Deno.serve(async (req) => {
       owner_id: string | null;
     };
     const qrType = qrRecord.type as "check_in" | "check_out";
+    const ownerId = worker.owner_id;
 
     console.log(`Found QR for worker: ${worker.name}, type: ${qrType}, date: ${qrRecord.date}`);
 
@@ -148,6 +150,7 @@ Deno.serve(async (req) => {
       
       await supabase.from("incidents").insert({
         worker_id: worker.id,
+        owner_id: ownerId,
         incident_type: "qr_type_mismatch",
         description: `Worker ${worker.name} scanned ${qrType} QR but request expected ${check_type}`,
         scanner_id: scanner_id || null,
@@ -170,6 +173,7 @@ Deno.serve(async (req) => {
       
       await supabase.from("incidents").insert({
         worker_id: worker.id,
+        owner_id: ownerId,
         incident_type: "inactive_worker_scan",
         description: `Inactive worker ${worker.name} attempted to scan ${qrType} QR`,
         scanner_id: scanner_id || null,
@@ -192,6 +196,7 @@ Deno.serve(async (req) => {
       
       await supabase.from("incidents").insert({
         worker_id: worker.id,
+        owner_id: ownerId,
         incident_type: "expired_qr",
         description: `Worker ${worker.name} used QR from ${qrRecord.date} on ${todayDate}`,
         scanner_id: scanner_id || null,
@@ -216,6 +221,7 @@ Deno.serve(async (req) => {
       
       await supabase.from("incidents").insert({
         worker_id: worker.id,
+        owner_id: ownerId,
         incident_type: "qr_reuse",
         description: `Worker ${worker.name} attempted to reuse ${qrType} QR (originally used at ${qrRecord.used_at})`,
         scanner_id: scanner_id || null,
@@ -242,6 +248,7 @@ Deno.serve(async (req) => {
       
       await supabase.from("incidents").insert({
         worker_id: worker.id,
+        owner_id: ownerId,
         incident_type: "expired_qr",
         description: `Worker ${worker.name} used ${qrType} QR outside valid time window (valid: ${validFrom.toISOString()} - ${validUntil.toISOString()})`,
         scanner_id: scanner_id || null,
@@ -273,6 +280,7 @@ Deno.serve(async (req) => {
       
       await supabase.from("incidents").insert({
         worker_id: worker.id,
+        owner_id: ownerId,
         incident_type: "wrong_qr_type",
         description: `Worker ${worker.name} attempted to use check-in QR after already checking in`,
         scanner_id: scanner_id || null,
@@ -294,6 +302,7 @@ Deno.serve(async (req) => {
       
       await supabase.from("incidents").insert({
         worker_id: worker.id,
+        owner_id: ownerId,
         incident_type: "wrong_qr_type",
         description: `Worker ${worker.name} attempted to check out without checking in first`,
         scanner_id: scanner_id || null,
@@ -315,6 +324,7 @@ Deno.serve(async (req) => {
       
       await supabase.from("incidents").insert({
         worker_id: worker.id,
+        owner_id: ownerId,
         incident_type: "double_checkout",
         description: `Worker ${worker.name} attempted to check out again (already checked out at ${existingAttendance.check_out})`,
         scanner_id: scanner_id || null,
@@ -381,6 +391,7 @@ Deno.serve(async (req) => {
         
         await supabase.from("incidents").insert({
           worker_id: worker.id,
+          owner_id: ownerId,
           incident_type: "early_checkin_attempt",
           description: `Worker ${worker.name} attempted to check in at ${currentTimeStr}, but earliest allowed is 30 minutes before ${workerStartTime}`,
           scanner_id: scanner_id || null,
@@ -425,6 +436,7 @@ Deno.serve(async (req) => {
       } else {
         await supabase.from("attendance").insert({
           worker_id: worker.id,
+          owner_id: ownerId,
           date: todayDate,
           check_in: nowISO,
           status: newStatus,
@@ -451,6 +463,7 @@ Deno.serve(async (req) => {
       if (isEarlyCheckout) {
         await supabase.from("incidents").insert({
           worker_id: worker.id,
+          owner_id: ownerId,
           incident_type: "early_checkout",
           description: `Worker ${worker.name} checked out at ${currentTimeStr}, before scheduled end time ${workerEndTime}`,
           scanner_id: scanner_id || null,

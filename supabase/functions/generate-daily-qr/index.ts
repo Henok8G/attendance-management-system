@@ -298,6 +298,7 @@ Deno.serve(async (req) => {
         } else {
           await supabase.from("daily_qr_codes").insert({
             worker_id: worker.id,
+            owner_id: user.id,
             date: todayDate,
             type: genType,
             qr_token: qrToken,
