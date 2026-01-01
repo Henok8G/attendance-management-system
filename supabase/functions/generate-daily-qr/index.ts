@@ -312,7 +312,9 @@ Deno.serve(async (req) => {
         // Send email if worker has email and Resend is configured
         if (worker.email && resend) {
           try {
-            const scanUrl = `${supabaseUrl.replace('.supabase.co', '.lovable.app')}/scan?token=${qrToken}&type=${genType}`;
+            // Use the project's app URL for the scan link
+            const appUrl = Deno.env.get("APP_URL") || "https://qlobfbzhjtzzdjqxcrhu.lovable.app";
+            const scanUrl = `${appUrl}/scan?token=${qrToken}`;
             const typeLabel = genType === "check_in" ? "Check-In" : "Check-Out";
             
             await resend.emails.send({
@@ -328,6 +330,11 @@ Deno.serve(async (req) => {
                   <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
                     <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(scanUrl)}" alt="QR Code" style="max-width: 200px;" />
                   </div>
+                  <p style="text-align: center;">
+                    <a href="${scanUrl}" style="display: inline-block; background: #c4a747; color: #1a1a1a; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">
+                      Scan ${typeLabel}
+                    </a>
+                  </p>
                   <p style="color: #666; font-size: 14px;">
                     <strong>Valid Time:</strong> ${validFromTime} - ${validUntilTime} (Africa/Addis_Ababa)
                   </p>

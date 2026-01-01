@@ -1,21 +1,29 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Scissors, CheckCircle, XCircle, Clock, Loader2, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Scissors, CheckCircle, XCircle, Clock, Loader2, AlertTriangle, ArrowLeft, LogIn, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 
 type ScanResult = {
-  valid: boolean;
-  success?: boolean;
+  success: boolean;
+  valid?: boolean;
   action?: 'check_in' | 'check_out' | 'already_checked_out';
-  status?: 'in' | 'out' | 'late';
+  status?: 'in' | 'out' | 'late' | 'absent';
+  worker_id?: string;
   worker_name?: string;
   is_late?: boolean;
+  is_early_checkout?: boolean;
+  incident_created?: boolean;
+  check_in?: string;
+  check_out?: string;
+  timestamp?: string;
+  time?: string;
   message?: string;
   error?: string;
   incident_logged?: boolean;
+  used_at?: string;
 };
 
 export default function ScanPage() {
@@ -24,58 +32,41 @@ export default function ScanPage() {
   const [result, setResult] = useState<ScanResult | null>(null);
 
   useEffect(() => {
-    // Support both old static QR (secret param) and new time-based QR (token param)
     const qrToken = searchParams.get('token');
     const qrSecret = searchParams.get('secret');
     const scannerId = searchParams.get('scanner');
-    const checkType = searchParams.get('type'); // check_in or check_out
 
     if (!qrToken && !qrSecret) {
-      setResult({ valid: false, error: 'Invalid QR code - no token provided' });
+      setResult({ success: false, error: 'Invalid QR code - no token provided' });
       setLoading(false);
       return;
     }
 
     const processScan = async () => {
       try {
-        // Use the new validate-qr-scan for token-based QR codes
-        if (qrToken) {
-          const { data, error } = await supabase.functions.invoke('validate-qr-scan', {
-            body: { qr_token: qrToken, scanner_id: scannerId, check_type: checkType },
-          });
+        // Use validate-qr-scan for token-based QR codes, scan-attendance for legacy
+        const functionName = qrToken ? 'validate-qr-scan' : 'scan-attendance';
+        const body = qrToken 
+          ? { qr_token: qrToken, scanner_id: scannerId || null }
+          : { qr_secret: qrSecret, scanner_id: scannerId || null };
 
-          if (error) {
-            console.error('Edge function error:', error);
-            setResult({ valid: false, error: error.message || 'Failed to process scan' });
-          } else {
-            setResult(data as ScanResult);
-          }
+        console.log(`Calling ${functionName} with:`, body);
+
+        const { data, error } = await supabase.functions.invoke(functionName, { body });
+
+        if (error) {
+          console.error('Edge function error:', error);
+          setResult({ 
+            success: false, 
+            error: error.message || 'Failed to process scan' 
+          });
         } else {
-          // Fallback to old scan-attendance for static QR codes
-          const { data, error } = await supabase.functions.invoke('scan-attendance', {
-            body: { qr_secret: qrSecret, scanner_id: scannerId },
-          });
-
-          if (error) {
-            console.error('Edge function error:', error);
-            setResult({ valid: false, error: error.message || 'Failed to process scan' });
-          } else {
-            // Convert old format to new format
-            setResult({
-              valid: data.success,
-              success: data.success,
-              action: data.action,
-              status: data.status,
-              worker_name: data.worker_name,
-              is_late: data.is_late,
-              message: data.message,
-              error: data.error,
-            });
-          }
+          console.log('Scan result:', data);
+          setResult(data as ScanResult);
         }
       } catch (err) {
         console.error('Scan error:', err);
-        setResult({ valid: false, error: 'Network error - please try again' });
+        setResult({ success: false, error: 'Network error - please try again' });
       } finally {
         setLoading(false);
       }
@@ -84,39 +75,96 @@ export default function ScanPage() {
     processScan();
   }, [searchParams]);
 
-  const isSuccess = result?.valid || result?.success;
+  const isSuccess = result?.success || result?.valid;
 
   const getStatusIcon = () => {
-    if (loading) return <Loader2 className="w-16 h-16 animate-spin text-brand-gold" />;
-    if (!isSuccess) return <XCircle className="w-16 h-16 text-status-late" />;
-    if (result?.action === 'already_checked_out') return <AlertTriangle className="w-16 h-16 text-brand-gold" />;
-    if (result?.is_late) return <Clock className="w-16 h-16 text-status-late" />;
+    if (loading) {
+      return <Loader2 className="w-16 h-16 animate-spin text-brand-gold" />;
+    }
+    if (!isSuccess) {
+      return <XCircle className="w-16 h-16 text-status-late" />;
+    }
+    if (result?.action === 'already_checked_out') {
+      return <AlertTriangle className="w-16 h-16 text-brand-gold" />;
+    }
+    if (result?.is_late) {
+      return <Clock className="w-16 h-16 text-status-late" />;
+    }
+    if (result?.is_early_checkout) {
+      return <AlertTriangle className="w-16 h-16 text-status-late" />;
+    }
+    if (result?.action === 'check_in') {
+      return <LogIn className="w-16 h-16 text-status-in" />;
+    }
+    if (result?.action === 'check_out') {
+      return <LogOut className="w-16 h-16 text-status-out" />;
+    }
     return <CheckCircle className="w-16 h-16 text-status-in" />;
   };
 
   const getStatusMessage = () => {
     if (loading) return 'Processing scan...';
     if (!isSuccess) return result?.error || 'Scan failed';
-    if (result?.action === 'already_checked_out') return result?.message || 'Already checked out';
-    if (result?.action === 'check_in') {
-      return result?.is_late ? 'Checked In (Late)' : 'Checked In';
+    
+    if (result?.action === 'already_checked_out') {
+      return 'Already Checked Out';
     }
-    return 'Checked Out';
+    
+    if (result?.action === 'check_in') {
+      if (result?.is_late) {
+        return 'Checked In (Late)';
+      }
+      return 'Checked In';
+    }
+    
+    if (result?.action === 'check_out') {
+      if (result?.is_early_checkout) {
+        return 'Checked Out (Early)';
+      }
+      return 'Checked Out';
+    }
+    
+    return result?.status === 'late' ? 'Checked In (Late)' : 
+           result?.status === 'in' ? 'Checked In' :
+           result?.status === 'out' ? 'Checked Out' : 'Success';
   };
 
   const getStatusColor = () => {
     if (loading) return 'text-muted-foreground';
     if (!isSuccess) return 'text-status-late';
     if (result?.action === 'already_checked_out') return 'text-brand-gold';
-    if (result?.is_late) return 'text-status-late';
-    if (result?.action === 'check_in') return 'text-status-in';
-    return 'text-status-out';
+    if (result?.is_late || result?.is_early_checkout) return 'text-status-late';
+    if (result?.action === 'check_in' || result?.status === 'in') return 'text-status-in';
+    if (result?.action === 'check_out' || result?.status === 'out') return 'text-status-out';
+    return 'text-status-in';
+  };
+
+  const getBackgroundGradient = () => {
+    if (loading) return 'from-brand-gold/10 to-transparent';
+    if (!isSuccess) return 'from-status-late/10 to-transparent';
+    if (result?.is_late || result?.is_early_checkout) return 'from-status-late/10 to-transparent';
+    if (result?.action === 'check_out' || result?.status === 'out') return 'from-status-out/10 to-transparent';
+    return 'from-status-in/10 to-transparent';
+  };
+
+  const formatTime = (isoString?: string) => {
+    if (!isoString) return null;
+    try {
+      return new Date(isoString).toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Africa/Addis_Ababa',
+      });
+    } catch {
+      return null;
+    }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden p-4">
+      {/* Background effects */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/3 left-1/4 w-[500px] h-[500px] bg-brand-gold/5 rounded-full blur-3xl" />
+        <div className={`absolute top-1/3 left-1/4 w-[500px] h-[500px] rounded-full blur-3xl bg-gradient-radial ${getBackgroundGradient()}`} />
         <div className="absolute bottom-1/3 right-1/4 w-[400px] h-[400px] bg-brand-green/5 rounded-full blur-3xl" />
       </div>
 
@@ -127,6 +175,7 @@ export default function ScanPage() {
         className="relative z-10 w-full max-w-md"
       >
         <Card className="glass-card p-8 text-center">
+          {/* Logo */}
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -141,13 +190,16 @@ export default function ScanPage() {
           </h1>
           <p className="text-muted-foreground mb-8">Attendance Scanner</p>
 
+          {/* Status Display */}
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.3, duration: 0.4 }}
             className="flex flex-col items-center gap-4 mb-8"
           >
-            {getStatusIcon()}
+            <div className="p-4 rounded-full bg-card border border-border">
+              {getStatusIcon()}
+            </div>
             
             {result?.worker_name && isSuccess && (
               <p className="text-xl font-semibold text-foreground">
@@ -155,27 +207,42 @@ export default function ScanPage() {
               </p>
             )}
 
-            <p className={`text-xl font-bold ${getStatusColor()}`}>
+            <p className={`text-2xl font-bold ${getStatusColor()}`}>
               {getStatusMessage()}
             </p>
 
-            {result?.incident_logged && !isSuccess && (
-              <p className="text-sm text-status-late">
-                This incident has been logged.
-              </p>
+            {/* Time display */}
+            {isSuccess && result?.action !== 'already_checked_out' && (
+              <div className="text-sm text-muted-foreground space-y-1">
+                {result?.action === 'check_in' && result?.timestamp && (
+                  <p>Check-in: {formatTime(result.timestamp)}</p>
+                )}
+                {result?.action === 'check_out' && (
+                  <>
+                    {result?.check_in && <p>Check-in: {formatTime(result.check_in)}</p>}
+                    {result?.timestamp && <p>Check-out: {formatTime(result.timestamp)}</p>}
+                  </>
+                )}
+              </div>
             )}
 
-            {isSuccess && result?.action !== 'already_checked_out' && (
-              <p className="text-sm text-muted-foreground">
-                {new Date().toLocaleTimeString('en-US', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  timeZone: 'Africa/Addis_Ababa',
-                })}
+            {/* Incident warning */}
+            {(result?.incident_logged || result?.incident_created) && (
+              <div className="flex items-center gap-2 text-sm text-status-late bg-status-late/10 px-3 py-2 rounded-md">
+                <AlertTriangle className="w-4 h-4" />
+                <span>Incident recorded</span>
+              </div>
+            )}
+
+            {/* Error details */}
+            {!isSuccess && result?.error && (
+              <p className="text-sm text-muted-foreground max-w-xs">
+                {result.error}
               </p>
             )}
           </motion.div>
 
+          {/* Back button */}
           <Link to="/">
             <Button variant="outline" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
@@ -183,6 +250,18 @@ export default function ScanPage() {
             </Button>
           </Link>
         </Card>
+
+        {/* Success animation overlay */}
+        {isSuccess && !loading && (
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1.5, opacity: 0 }}
+            transition={{ delay: 0.5, duration: 0.8 }}
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+          >
+            <div className={`w-32 h-32 rounded-full ${result?.is_late || result?.is_early_checkout ? 'bg-status-late/20' : 'bg-status-in/20'}`} />
+          </motion.div>
+        )}
       </motion.div>
     </div>
   );

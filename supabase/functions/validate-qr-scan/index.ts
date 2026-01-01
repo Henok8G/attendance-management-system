@@ -8,7 +8,7 @@ const corsHeaders = {
 
 const TIMEZONE = "Africa/Addis_Ababa";
 
-// Input validation schema
+// Input validation schema - all fields are nullable/optional for safety
 const RequestSchema = z.object({
   qr_token: z.string().min(32).max(128),
   scanner_id: z.string().uuid().nullish().transform(val => val || undefined),
@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Use service role client for all database operations
+    // Use service role client for all database operations (bypasses RLS for edge function)
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // ========== INPUT VALIDATION ==========
@@ -78,9 +78,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { qr_token, scanner_id, check_type } = parseResult.data;
+    const { qr_token, scanner_id } = parseResult.data;
 
-    console.log(`Processing QR scan - type: ${check_type || "auto"}, scanner: ${scanner_id || "none"}`);
+    console.log(`Processing QR scan - scanner: ${scanner_id || "none"}`);
 
     const now = new Date();
     const todayDate = getEthiopiaDate();
@@ -88,7 +88,6 @@ Deno.serve(async (req) => {
     const currentMinutes = parseTimeToMinutes(currentTimeStr);
 
     // ========== OPTIONAL SCANNER VALIDATION ==========
-    // If scanner_id is provided, validate it exists and is active
     if (scanner_id) {
       const { data: scanner, error: scannerError } = await supabase
         .from("scanners")
@@ -142,12 +141,13 @@ Deno.serve(async (req) => {
     if (!qrRecord) {
       console.error("QR token not found");
       
-      // Log incident without worker_id
+      // Log incident without worker_id (anonymous invalid scan)
       await supabase.from("incidents").insert({
         incident_type: "invalid_qr",
         description: "Invalid QR token scanned",
         scanner_id: scanner_id || null,
         worker_id: null,
+        owner_id: null,
       });
 
       return new Response(
@@ -168,6 +168,8 @@ Deno.serve(async (req) => {
       custom_end_time: string | null;
       owner_id: string | null;
     };
+    
+    // Determine QR type: "check_in" or "check_out"
     const qrType = qrRecord.type as "check_in" | "check_out";
     const ownerId = worker.owner_id;
 
@@ -175,30 +177,7 @@ Deno.serve(async (req) => {
 
     // ========== VALIDATIONS ==========
     
-    // 1. Validate check_type matches if provided
-    if (check_type && check_type !== qrType) {
-      console.error(`Type mismatch: expected ${check_type}, got ${qrType}`);
-      
-      await supabase.from("incidents").insert({
-        worker_id: worker.id,
-        owner_id: ownerId,
-        incident_type: "wrong_qr_type",
-        description: `Scanned ${qrType} QR but expected ${check_type}`,
-        scanner_id: scanner_id || null,
-      });
-
-      return new Response(
-        JSON.stringify({ 
-          success: false,
-          error: `Wrong QR code. This is a ${qrType.replace('_', '-')} code.`, 
-          worker_name: worker.name,
-          incident_logged: true 
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // 2. Check if worker is active
+    // 1. Check if worker is active
     if (!worker.is_active) {
       console.error("Worker is inactive:", worker.id);
       
@@ -221,7 +200,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Check if QR is for today
+    // 2. Check if QR is for today
     if (qrRecord.date !== todayDate) {
       console.error(`QR date mismatch: QR=${qrRecord.date}, today=${todayDate}`);
       
@@ -246,7 +225,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 4. Check if already used
+    // 3. Check if already used (double scan)
     if (qrRecord.used_at) {
       console.error(`QR already used at: ${qrRecord.used_at}`);
       
@@ -261,7 +240,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false,
-          error: "QR code already used", 
+          error: qrType === "check_in" ? "Already checked in" : "Already checked out", 
           worker_name: worker.name,
           used_at: qrRecord.used_at,
           incident_logged: true 
@@ -270,7 +249,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 5. Check time window validity
+    // 4. Check time window validity
     const validFrom = new Date(qrRecord.valid_from);
     const validUntil = new Date(qrRecord.valid_until);
 
@@ -336,7 +315,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 6. Validate logical flow (check-in before check-out)
+    // 5. Validate logical flow
     if (qrType === "check_in" && existingAttendance?.check_in) {
       console.error(`Already checked in for today`);
       
@@ -353,7 +332,8 @@ Deno.serve(async (req) => {
           success: false,
           error: "Already checked in today", 
           worker_name: worker.name,
-          check_in_time: existingAttendance.check_in,
+          check_in: existingAttendance.check_in,
+          status: existingAttendance.status,
           incident_logged: true 
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -374,7 +354,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false,
-          error: "Must check in first before checking out", 
+          error: "Cannot check out before check-in", 
           worker_name: worker.name,
           incident_logged: true 
         }),
@@ -398,7 +378,7 @@ Deno.serve(async (req) => {
           success: false,
           error: "Already checked out today", 
           worker_name: worker.name,
-          check_out_time: existingAttendance.check_out,
+          check_out: existingAttendance.check_out,
           incident_logged: true 
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -406,17 +386,32 @@ Deno.serve(async (req) => {
     }
 
     // ========== MARK QR AS USED (CRITICAL: must succeed before attendance update) ==========
-    const { error: updateQrError } = await supabase
+    const { error: updateQrError, data: updatedQr } = await supabase
       .from("daily_qr_codes")
       .update({ used_at: now.toISOString() })
       .eq("id", qrRecord.id)
-      .is("used_at", null); // Only update if not already used (race condition protection)
+      .is("used_at", null) // Only update if not already used (race condition protection)
+      .select()
+      .maybeSingle();
 
     if (updateQrError) {
       console.error("Failed to mark QR as used:", updateQrError);
       return new Response(
         JSON.stringify({ success: false, error: "Failed to process QR code" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // If no row was updated, QR was already used (race condition)
+    if (!updatedQr) {
+      console.error("QR was used by another request (race condition)");
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: qrType === "check_in" ? "Already checked in" : "Already checked out",
+          worker_name: worker.name 
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -441,6 +436,7 @@ Deno.serve(async (req) => {
     let newStatus: "in" | "out" | "late";
     let isLate = false;
     let isEarlyCheckout = false;
+    let incidentCreated = false;
 
     if (qrType === "check_in") {
       // Check if late
@@ -449,6 +445,7 @@ Deno.serve(async (req) => {
 
       // Log late check-in incident
       if (isLate) {
+        incidentCreated = true;
         await supabase.from("incidents").insert({
           worker_id: worker.id,
           owner_id: ownerId,
@@ -508,6 +505,7 @@ Deno.serve(async (req) => {
       // Detect early checkout
       if (currentMinutes < endMinutes) {
         isEarlyCheckout = true;
+        incidentCreated = true;
         
         await supabase.from("incidents").insert({
           worker_id: worker.id,
@@ -546,11 +544,16 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
+        valid: true,
         action: qrType,
         status: newStatus,
+        worker_id: worker.id,
         worker_name: worker.name,
         is_late: isLate,
         is_early_checkout: isEarlyCheckout,
+        incident_created: incidentCreated,
+        check_in: qrType === "check_in" ? nowISO : existingAttendance?.check_in,
+        check_out: qrType === "check_out" ? nowISO : null,
         timestamp: nowISO,
         time: currentTimeStr,
       }),
