@@ -12,7 +12,7 @@ const TIMEZONE = "Africa/Addis_Ababa";
 const RequestSchema = z.object({
   qr_token: z.string().min(32).max(128).optional(),
   qr_secret: z.string().uuid().optional(),
-  scanner_id: z.string().uuid().optional(),
+  scanner_id: z.string().uuid().nullish().transform(val => val || undefined),
 }).refine(data => data.qr_token || data.qr_secret, {
   message: "Either qr_token or qr_secret is required"
 });
