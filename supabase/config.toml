@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.scan-attendance]
 verify_jwt = false
+
+[functions.send-qr-email]
+verify_jwt = true

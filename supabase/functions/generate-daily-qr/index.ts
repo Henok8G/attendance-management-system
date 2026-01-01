@@ -218,6 +218,7 @@ Deno.serve(async (req) => {
     }
 
     const results: unknown[] = [];
+    const appUrl = Deno.env.get("APP_URL") || "https://qlobfbzhjtzzdjqxcrhu.lovable.app";
 
     for (const worker of workers) {
       const workerStartTime = worker.custom_start_time || defaultStartTime;
@@ -265,6 +266,7 @@ Deno.serve(async (req) => {
             type: genType,
             status: existingQR.used_at ? "already_used" : "already_exists",
             qr_token: existingQR.qr_token,
+            qr_code_id: existingQR.id,
           });
           continue;
         }
@@ -284,9 +286,11 @@ Deno.serve(async (req) => {
         const validFrom = createEthiopiaTimestamp(todayDate, validFromTime);
         const validUntil = createEthiopiaTimestamp(todayDate, validUntilTime);
 
+        let qrCodeId: string | null = null;
+
         // Insert or update QR code
         if (existingQR) {
-          await supabase
+          const { data: updatedQR } = await supabase
             .from("daily_qr_codes")
             .update({
               qr_token: qrToken,
@@ -294,9 +298,12 @@ Deno.serve(async (req) => {
               valid_until: validUntil.toISOString(),
               used_at: null,
             })
-            .eq("id", existingQR.id);
+            .eq("id", existingQR.id)
+            .select("id")
+            .single();
+          qrCodeId = updatedQR?.id || existingQR.id;
         } else {
-          await supabase.from("daily_qr_codes").insert({
+          const { data: newQR } = await supabase.from("daily_qr_codes").insert({
             worker_id: worker.id,
             owner_id: user.id,
             date: todayDate,
@@ -304,47 +311,143 @@ Deno.serve(async (req) => {
             qr_token: qrToken,
             valid_from: validFrom.toISOString(),
             valid_until: validUntil.toISOString(),
-          });
+          }).select("id").single();
+          qrCodeId = newQR?.id || null;
         }
 
         console.log(`Generated ${genType} QR for ${worker.name}, valid from ${validFrom.toISOString()} to ${validUntil.toISOString()}`);
 
-        // Send email if worker has email and Resend is configured
-        if (worker.email && resend) {
+        let emailSent = false;
+        let emailError: string | null = null;
+
+        // Send email and track delivery
+        if (worker.email && resend && qrCodeId) {
           try {
-            // Use the project's app URL for the scan link
-            const appUrl = Deno.env.get("APP_URL") || "https://qlobfbzhjtzzdjqxcrhu.lovable.app";
             const scanUrl = `${appUrl}/scan?token=${qrToken}`;
             const typeLabel = genType === "check_in" ? "Check-In" : "Check-Out";
             
-            await resend.emails.send({
+            const emailResult = await resend.emails.send({
               from: "C-Mac Barbershop <onboarding@resend.dev>",
               to: [worker.email],
               subject: `Your ${typeLabel} QR Code for ${todayDate}`,
               html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                  <h1 style="color: #1a1a1a; text-align: center;">C-Mac Barbershop</h1>
-                  <h2 style="color: #c4a747; text-align: center;">${typeLabel} QR Code</h2>
-                  <p>Hello <strong>${worker.name}</strong>,</p>
-                  <p>Here is your ${typeLabel.toLowerCase()} QR code for <strong>${todayDate}</strong>.</p>
-                  <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(scanUrl)}" alt="QR Code" style="max-width: 200px;" />
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                </head>
+                <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;">
+                  <div style="max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+                    
+                    <!-- Header -->
+                    <div style="background: linear-gradient(90deg, #c4a747 0%, #d4b957 100%); padding: 30px; text-align: center;">
+                      <h1 style="color: #1a1a1a; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 1px;">C-MAC BARBERSHOP</h1>
+                      <p style="color: #333; margin: 5px 0 0 0; font-size: 14px; text-transform: uppercase; letter-spacing: 2px;">Attendance System</p>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div style="padding: 40px 30px;">
+                      <div style="text-align: center; margin-bottom: 30px;">
+                        <span style="display: inline-block; background: ${genType === 'check_in' ? '#22c55e' : '#3b82f6'}; color: white; padding: 8px 20px; border-radius: 20px; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">
+                          ${typeLabel}
+                        </span>
+                      </div>
+                      
+                      <p style="color: #e0e0e0; font-size: 18px; margin: 0 0 10px 0;">Hello <strong style="color: #c4a747;">${worker.name}</strong>,</p>
+                      <p style="color: #b0b0b0; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                        Here is your ${typeLabel.toLowerCase()} QR code for <strong style="color: #fff;">${todayDate}</strong>. 
+                        Please scan this code at the designated scanner when you ${genType === 'check_in' ? 'arrive' : 'leave'}.
+                      </p>
+                      
+                      <!-- QR Code -->
+                      <div style="background: white; padding: 25px; border-radius: 12px; text-align: center; margin: 30px 0;">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(scanUrl)}&color=1a1a2e" 
+                             alt="QR Code" 
+                             style="max-width: 200px; height: auto; border-radius: 8px;" />
+                        <p style="color: #666; font-size: 12px; margin: 15px 0 0 0;">Scan with your phone camera or the barbershop scanner</p>
+                      </div>
+                      
+                      <!-- CTA Button -->
+                      <div style="text-align: center; margin: 30px 0;">
+                        <a href="${scanUrl}" 
+                           style="display: inline-block; background: linear-gradient(90deg, #c4a747 0%, #d4b957 100%); color: #1a1a1a; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 15px rgba(196, 167, 71, 0.4);">
+                          ${genType === 'check_in' ? '🏁 Scan Check-In' : '🏠 Scan Check-Out'}
+                        </a>
+                      </div>
+                      
+                      <!-- Time Info -->
+                      <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; margin: 30px 0;">
+                        <p style="color: #c4a747; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px 0;">⏰ Valid Time Window</p>
+                        <p style="color: #fff; font-size: 18px; margin: 0; font-weight: 600;">
+                          ${validFromTime} — ${validUntilTime}
+                        </p>
+                        <p style="color: #888; font-size: 12px; margin: 10px 0 0 0;">Africa/Addis Ababa Timezone</p>
+                      </div>
+                      
+                      <!-- Security Notice -->
+                      <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; margin-top: 30px;">
+                        <p style="color: #888; font-size: 12px; line-height: 1.6; margin: 0;">
+                          🔒 <strong>Security Notice:</strong> This QR code is unique to you and can only be used once. 
+                          Do not share it with anyone. If you suspect misuse, please contact your manager immediately.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <!-- Footer -->
+                    <div style="background: rgba(0,0,0,0.3); padding: 20px; text-align: center;">
+                      <p style="color: #666; font-size: 12px; margin: 0;">
+                        © ${new Date().getFullYear()} C-Mac Barbershop. All rights reserved.
+                      </p>
+                    </div>
                   </div>
-                  <p style="text-align: center;">
-                    <a href="${scanUrl}" style="display: inline-block; background: #c4a747; color: #1a1a1a; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">
-                      Scan ${typeLabel}
-                    </a>
-                  </p>
-                  <p style="color: #666; font-size: 14px;">
-                    <strong>Valid Time:</strong> ${validFromTime} - ${validUntilTime} (Africa/Addis_Ababa)
-                  </p>
-                  <p style="color: #999; font-size: 12px;">This QR code can only be used once. Do not share it with others.</p>
-                </div>
+                </body>
+                </html>
               `,
             });
-            console.log(`Email sent to ${worker.email} for ${genType}`);
-          } catch (emailError) {
-            console.error(`Failed to send email to ${worker.email}:`, emailError);
+
+            if (emailResult.error) {
+              console.error(`Resend API error for ${worker.email}:`, emailResult.error);
+              emailError = emailResult.error.message || "Resend API error";
+            } else {
+              emailSent = true;
+              console.log(`✅ Email sent to ${worker.email} for ${genType}`);
+            }
+          } catch (err) {
+            emailError = err instanceof Error ? err.message : "Unknown email error";
+            console.error(`❌ Failed to send email to ${worker.email}:`, emailError);
+          }
+
+          // Track email delivery in qr_email_delivery table
+          try {
+            await supabase.from("qr_email_delivery").upsert({
+              qr_code_id: qrCodeId,
+              worker_id: worker.id,
+              qr_token: qrToken,
+              email_address: worker.email,
+              status: emailSent ? "sent" : "failed",
+              email_sent_at: emailSent ? new Date().toISOString() : null,
+              error_message: emailError,
+              owner_id: user.id,
+            }, { onConflict: "qr_code_id" });
+          } catch (trackError) {
+            console.error("Failed to track email delivery:", trackError);
+          }
+        } else if (!worker.email && qrCodeId) {
+          // Log that worker has no email
+          console.warn(`⚠️ Worker ${worker.name} has no email address, QR generated but not sent`);
+          try {
+            await supabase.from("qr_email_delivery").upsert({
+              qr_code_id: qrCodeId,
+              worker_id: worker.id,
+              qr_token: qrToken,
+              email_address: "none",
+              status: "failed",
+              error_message: "Worker has no email address",
+              owner_id: user.id,
+            }, { onConflict: "qr_code_id" });
+          } catch (trackError) {
+            console.error("Failed to track missing email:", trackError);
           }
         }
 
@@ -354,9 +457,11 @@ Deno.serve(async (req) => {
           type: genType,
           status: "generated",
           qr_token: qrToken,
+          qr_code_id: qrCodeId,
           valid_from: validFrom.toISOString(),
           valid_until: validUntil.toISOString(),
-          email_sent: !!(worker.email && resend),
+          email_sent: emailSent,
+          email_error: emailError,
         });
       }
     }

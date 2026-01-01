@@ -205,6 +205,66 @@ export type Database = {
           },
         ]
       }
+      qr_email_delivery: {
+        Row: {
+          created_at: string
+          email_address: string
+          email_sent_at: string | null
+          error_message: string | null
+          id: string
+          owner_id: string
+          qr_code_id: string
+          qr_token: string
+          retry_count: number
+          status: string
+          updated_at: string
+          worker_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_address: string
+          email_sent_at?: string | null
+          error_message?: string | null
+          id?: string
+          owner_id: string
+          qr_code_id: string
+          qr_token: string
+          retry_count?: number
+          status?: string
+          updated_at?: string
+          worker_id: string
+        }
+        Update: {
+          created_at?: string
+          email_address?: string
+          email_sent_at?: string | null
+          error_message?: string | null
+          id?: string
+          owner_id?: string
+          qr_code_id?: string
+          qr_token?: string
+          retry_count?: number
+          status?: string
+          updated_at?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qr_email_delivery_qr_code_id_fkey"
+            columns: ["qr_code_id"]
+            isOneToOne: false
+            referencedRelation: "daily_qr_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_email_delivery_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scanners: {
         Row: {
           created_at: string
