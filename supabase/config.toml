@@ -4,7 +4,7 @@ project_id = "qlobfbzhjtzzdjqxcrhu"
 verify_jwt = true
 
 [functions.validate-qr-scan]
-verify_jwt = true
+verify_jwt = false
 
 [functions.scan-attendance]
-verify_jwt = true
+verify_jwt = false
