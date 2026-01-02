@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.89.0";
-import { Resend } from "https://esm.sh/resend@4.0.0";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,6 +42,14 @@ interface DeliveryRecord {
   retry_count: number;
 }
 
+interface SMTPConfig {
+  hostname: string;
+  port: number;
+  username: string;
+  password: string;
+  from: string;
+}
+
 // Format time for display
 function formatTime(isoString: string): string {
   try {
@@ -58,9 +66,156 @@ function formatTime(isoString: string): string {
   }
 }
 
+// Generate QR code data URL using base64 encoding for email embedding
+function generateQRCodeImageUrl(scanUrl: string): string {
+  // Use quickchart.io with proper encoding for reliable email display
+  const encodedUrl = encodeURIComponent(scanUrl);
+  return `https://quickchart.io/qr?text=${encodedUrl}&size=200&margin=1`;
+}
+
+// Build email HTML content
+function buildEmailHTML(
+  workerName: string,
+  typeLabel: string,
+  genType: string,
+  date: string,
+  scanUrl: string,
+  validFromFormatted: string,
+  validUntilFormatted: string,
+  qrImageUrl: string
+): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;">
+      <div style="max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(90deg, #c4a747 0%, #d4b957 100%); padding: 30px; text-align: center;">
+          <h1 style="color: #1a1a1a; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 1px;">C-MAC BARBERSHOP</h1>
+          <p style="color: #333; margin: 5px 0 0 0; font-size: 14px; text-transform: uppercase; letter-spacing: 2px;">Attendance System</p>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <span style="display: inline-block; background: ${genType === 'check_in' ? '#22c55e' : '#3b82f6'}; color: white; padding: 8px 20px; border-radius: 20px; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">
+              ${typeLabel}
+            </span>
+          </div>
+          
+          <p style="color: #e0e0e0; font-size: 18px; margin: 0 0 10px 0;">Hello <strong style="color: #c4a747;">${workerName}</strong>,</p>
+          <p style="color: #b0b0b0; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+            Here is your ${typeLabel.toLowerCase()} QR code for <strong style="color: #fff;">${date}</strong>. 
+            Please scan this code at the designated scanner when you ${genType === 'check_in' ? 'arrive' : 'leave'}.
+          </p>
+          
+          <!-- QR Code -->
+          <div style="background: white; padding: 25px; border-radius: 12px; text-align: center; margin: 30px 0;">
+            <img src="${qrImageUrl}" 
+                 alt="QR Code for ${typeLabel}" 
+                 width="200" 
+                 height="200"
+                 style="display: block; margin: 0 auto; border-radius: 8px;" />
+            <p style="color: #666; font-size: 12px; margin: 15px 0 0 0;">Scan with your phone camera or the barbershop scanner</p>
+          </div>
+          
+          <!-- CTA Button -->
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${scanUrl}" 
+               style="display: inline-block; background: linear-gradient(90deg, #c4a747 0%, #d4b957 100%); color: #1a1a1a; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 15px rgba(196, 167, 71, 0.4);">
+              ${genType === 'check_in' ? '🏁 Scan Check-In' : '🏠 Scan Check-Out'}
+            </a>
+          </div>
+          
+          <!-- Time Info -->
+          <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; margin: 30px 0;">
+            <p style="color: #c4a747; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px 0;">⏰ Valid Time Window</p>
+            <p style="color: #fff; font-size: 18px; margin: 0; font-weight: 600;">
+              ${validFromFormatted} — ${validUntilFormatted}
+            </p>
+            <p style="color: #888; font-size: 12px; margin: 10px 0 0 0;">Africa/Addis Ababa Timezone</p>
+          </div>
+          
+          <!-- Security Notice -->
+          <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; margin-top: 30px;">
+            <p style="color: #888; font-size: 12px; line-height: 1.6; margin: 0;">
+              🔒 <strong>Security Notice:</strong> This QR code is unique to you and can only be used once. 
+              Do not share it with anyone. If you suspect misuse, please contact your manager immediately.
+            </p>
+          </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background: rgba(0,0,0,0.3); padding: 20px; text-align: center;">
+          <p style="color: #666; font-size: 12px; margin: 0;">
+            © ${new Date().getFullYear()} C-Mac Barbershop. All rights reserved.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+// Send email using SMTP (Gmail compatible)
+async function sendEmailViaSMTP(
+  smtpConfig: SMTPConfig,
+  to: string,
+  subject: string,
+  html: string
+): Promise<{ success: boolean; error?: string }> {
+  let client: SMTPClient | null = null;
+  
+  try {
+    console.log(`📧 Connecting to SMTP server ${smtpConfig.hostname}:${smtpConfig.port}...`);
+    
+    client = new SMTPClient({
+      connection: {
+        hostname: smtpConfig.hostname,
+        port: smtpConfig.port,
+        tls: true,
+        auth: {
+          username: smtpConfig.username,
+          password: smtpConfig.password,
+        },
+      },
+    });
+
+    console.log(`📧 Sending email to ${to}...`);
+    
+    await client.send({
+      from: smtpConfig.from,
+      to: to,
+      subject: subject,
+      content: "Please view this email in an HTML-compatible email client.",
+      html: html,
+    });
+
+    console.log(`✅ Email successfully sent to ${to}`);
+    return { success: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown SMTP error";
+    console.error(`❌ SMTP error sending to ${to}:`, errorMessage);
+    return { success: false, error: errorMessage };
+  } finally {
+    if (client) {
+      try {
+        await client.close();
+      } catch (closeError) {
+        console.warn("Warning: Failed to close SMTP connection:", closeError);
+      }
+    }
+  }
+}
+
 // Send email for a single QR code
 async function sendQREmail(
-  resend: InstanceType<typeof Resend>,
+  smtpConfig: SMTPConfig,
   qrCode: QRCodeWithWorker,
   appUrl: string
 ): Promise<{ success: boolean; error?: string }> {
@@ -75,107 +230,27 @@ async function sendQREmail(
   const typeLabel = qrCode.type === "check_in" ? "Check-In" : "Check-Out";
   const validFromFormatted = formatTime(qrCode.valid_from);
   const validUntilFormatted = formatTime(qrCode.valid_until);
+  const qrImageUrl = generateQRCodeImageUrl(scanUrl);
 
-  try {
-    const result = await resend.emails.send({
-      from: "C-Mac Barbershop <onboarding@resend.dev>",
-      to: [workerEmail],
-      subject: `Your ${typeLabel} QR Code for ${qrCode.date}`,
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;">
-          <div style="max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
-            
-            <!-- Header -->
-            <div style="background: linear-gradient(90deg, #c4a747 0%, #d4b957 100%); padding: 30px; text-align: center;">
-              <h1 style="color: #1a1a1a; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 1px;">C-MAC BARBERSHOP</h1>
-              <p style="color: #333; margin: 5px 0 0 0; font-size: 14px; text-transform: uppercase; letter-spacing: 2px;">Attendance System</p>
-            </div>
-            
-            <!-- Content -->
-            <div style="padding: 40px 30px;">
-              <div style="text-align: center; margin-bottom: 30px;">
-                <span style="display: inline-block; background: ${qrCode.type === 'check_in' ? '#22c55e' : '#3b82f6'}; color: white; padding: 8px 20px; border-radius: 20px; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">
-                  ${typeLabel}
-                </span>
-              </div>
-              
-              <p style="color: #e0e0e0; font-size: 18px; margin: 0 0 10px 0;">Hello <strong style="color: #c4a747;">${workerName}</strong>,</p>
-              <p style="color: #b0b0b0; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
-                Here is your ${typeLabel.toLowerCase()} QR code for <strong style="color: #fff;">${qrCode.date}</strong>. 
-                Please scan this code at the designated scanner when you ${qrCode.type === 'check_in' ? 'arrive' : 'leave'}.
-              </p>
-              
-              <!-- QR Code -->
-              <div style="background: white; padding: 25px; border-radius: 12px; text-align: center; margin: 30px 0;">
-                <img src="https://quickchart.io/qr?text=${encodeURIComponent(scanUrl)}&size=200&margin=1" 
-                     alt="QR Code for ${typeLabel}" 
-                     width="200" 
-                     height="200"
-                     style="display: block; margin: 0 auto; border-radius: 8px;" />
-                <p style="color: #666; font-size: 12px; margin: 15px 0 0 0;">Scan with your phone camera or the barbershop scanner</p>
-              </div>
-              
-              <!-- CTA Button -->
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${scanUrl}" 
-                   style="display: inline-block; background: linear-gradient(90deg, #c4a747 0%, #d4b957 100%); color: #1a1a1a; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 15px rgba(196, 167, 71, 0.4);">
-                  ${qrCode.type === 'check_in' ? '🏁 Scan Check-In' : '🏠 Scan Check-Out'}
-                </a>
-              </div>
-              
-              <!-- Time Info -->
-              <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; margin: 30px 0;">
-                <p style="color: #c4a747; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px 0;">⏰ Valid Time Window</p>
-                <p style="color: #fff; font-size: 18px; margin: 0; font-weight: 600;">
-                  ${validFromFormatted} — ${validUntilFormatted}
-                </p>
-                <p style="color: #888; font-size: 12px; margin: 10px 0 0 0;">Africa/Addis Ababa Timezone</p>
-              </div>
-              
-              <!-- Security Notice -->
-              <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; margin-top: 30px;">
-                <p style="color: #888; font-size: 12px; line-height: 1.6; margin: 0;">
-                  🔒 <strong>Security Notice:</strong> This QR code is unique to you and can only be used once. 
-                  Do not share it with anyone. If you suspect misuse, please contact your manager immediately.
-                </p>
-              </div>
-            </div>
-            
-            <!-- Footer -->
-            <div style="background: rgba(0,0,0,0.3); padding: 20px; text-align: center;">
-              <p style="color: #666; font-size: 12px; margin: 0;">
-                © ${new Date().getFullYear()} C-Mac Barbershop. All rights reserved.
-              </p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `,
-    });
+  const html = buildEmailHTML(
+    workerName,
+    typeLabel,
+    qrCode.type,
+    qrCode.date,
+    scanUrl,
+    validFromFormatted,
+    validUntilFormatted,
+    qrImageUrl
+  );
 
-    if (result.error) {
-      console.error(`Resend API error for ${workerEmail}:`, result.error);
-      return { success: false, error: result.error.message || "Resend API error" };
-    }
-
-    console.log(`✅ Email sent successfully to ${workerEmail} for ${typeLabel}`);
-    return { success: true };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown email error";
-    console.error(`❌ Failed to send email to ${workerEmail}:`, errorMessage);
-    return { success: false, error: errorMessage };
-  }
+  const subject = `Your ${typeLabel} QR Code for ${qrCode.date}`;
+  
+  return await sendEmailViaSMTP(smtpConfig, workerEmail, subject, html);
 }
 
 async function processSingleQREmail(
   supabase: SupabaseClient,
-  resend: InstanceType<typeof Resend>,
+  smtpConfig: SMTPConfig,
   qrCodeId: string,
   appUrl: string,
   isRetry: boolean
@@ -247,8 +322,16 @@ async function processSingleQREmail(
       return { success: false, error: `Max retries (${MAX_RETRIES}) exceeded` };
     }
 
+    // Update status to retrying if this is a retry
+    if (isRetry && existingDelivery) {
+      await supabase
+        .from("qr_email_delivery")
+        .update({ status: "retrying" })
+        .eq("id", existingDelivery.id);
+    }
+
     // Send the email
-    const emailResult = await sendQREmail(resend, qrCode, appUrl);
+    const emailResult = await sendQREmail(smtpConfig, qrCode, appUrl);
 
     // Update or create delivery record
     const deliveryData = {
@@ -293,18 +376,40 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    
+    // Get SMTP configuration from environment
+    const smtpHost = Deno.env.get("SMTP_HOST");
+    const smtpPort = Deno.env.get("SMTP_PORT");
+    const smtpUser = Deno.env.get("SMTP_USER");
+    const smtpPass = Deno.env.get("SMTP_PASS");
+    const smtpFrom = Deno.env.get("SMTP_FROM");
 
-    if (!resendApiKey) {
-      console.error("RESEND_API_KEY not configured");
+    // Validate SMTP configuration
+    if (!smtpHost || !smtpPort || !smtpUser || !smtpPass || !smtpFrom) {
+      console.error("SMTP configuration incomplete. Missing:", {
+        SMTP_HOST: !smtpHost,
+        SMTP_PORT: !smtpPort,
+        SMTP_USER: !smtpUser,
+        SMTP_PASS: !smtpPass,
+        SMTP_FROM: !smtpFrom,
+      });
       return new Response(
-        JSON.stringify({ error: "Email service not configured" }),
+        JSON.stringify({ error: "Email service not configured - missing SMTP credentials" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    const smtpConfig: SMTPConfig = {
+      hostname: smtpHost,
+      port: parseInt(smtpPort, 10),
+      username: smtpUser,
+      password: smtpPass,
+      from: smtpFrom,
+    };
+
+    console.log(`📧 SMTP configured: ${smtpHost}:${smtpPort} from ${smtpFrom}`);
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const resend = new Resend(resendApiKey);
     const appUrl = Deno.env.get("APP_URL") || "https://qlobfbzhjtzzdjqxcrhu.lovable.app";
 
     const body = await req.json().catch(() => ({}));
@@ -318,7 +423,7 @@ Deno.serve(async (req) => {
       const results: Array<{ qr_code_id: string; success: boolean; error?: string }> = [];
 
       for (const qrCodeId of qr_code_ids) {
-        const result = await processSingleQREmail(supabase, resend, qrCodeId, appUrl, false);
+        const result = await processSingleQREmail(supabase, smtpConfig, qrCodeId, appUrl, false);
         results.push({ qr_code_id: qrCodeId, ...result });
       }
 
@@ -351,7 +456,7 @@ Deno.serve(async (req) => {
     }
 
     const { qr_code_id, retry } = parseResult.data;
-    const result = await processSingleQREmail(supabase, resend, qr_code_id, appUrl, retry);
+    const result = await processSingleQREmail(supabase, smtpConfig, qr_code_id, appUrl, retry);
 
     return new Response(
       JSON.stringify(result),
