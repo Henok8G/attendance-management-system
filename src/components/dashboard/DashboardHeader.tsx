@@ -1,14 +1,50 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { SecureAvatar } from '@/components/ui/SecureAvatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Scissors, Moon, Sun, Settings, Users, LogOut, User } from 'lucide-react';
+import { Scissors, Moon, Sun, Settings, Users, LogOut, User, QrCode, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export function DashboardHeader() {
   const { profile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const [generating, setGenerating] = useState(false);
+
+  const handleGenerateQR = async () => {
+    setGenerating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Please sign in to generate QR codes');
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('generate-daily-qr', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.generated > 0) {
+        toast.success(`Generated ${data.generated} QR codes for ${data.workers} workers`);
+      } else if (data?.message) {
+        toast.info(data.message);
+      } else {
+        toast.info('No QR codes needed - all workers already have codes for today');
+      }
+    } catch (error: any) {
+      console.error('Error generating QR codes:', error);
+      toast.error(error.message || 'Failed to generate QR codes');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -21,6 +57,21 @@ export function DashboardHeader() {
         </Link>
 
         <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleGenerateQR}
+            disabled={generating}
+            className="gap-2"
+          >
+            {generating ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <QrCode className="w-4 h-4" />
+            )}
+            <span className="hidden sm:inline">Generate QR</span>
+          </Button>
+
           <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
             {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </Button>
