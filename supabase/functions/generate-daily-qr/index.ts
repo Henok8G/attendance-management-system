@@ -420,7 +420,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    const results: unknown[] = [];
+    interface QRResult {
+      worker_id: string;
+      worker_name: string;
+      type: string;
+      status: string;
+      qr_token?: string;
+      qr_code_id?: string | null;
+      valid_from?: string;
+      valid_until?: string;
+      email_sent?: boolean;
+      email_error?: string | null;
+    }
+    const results: QRResult[] = [];
     const appUrl = Deno.env.get("APP_URL") || "https://qlobfbzhjtzzdjqxcrhu.lovable.app";
 
     for (const worker of workers) {
@@ -620,8 +632,22 @@ Deno.serve(async (req) => {
       }
     }
 
+    const generatedCount = results.filter(r => r.status === "generated").length;
+    const workersCount = new Set(results.map(r => r.worker_id)).size;
+    const emailsSent = results.filter(r => r.email_sent === true).length;
+    const emailsFailed = results.filter(r => r.email_error).length;
+
+    console.log(`📊 Summary: ${generatedCount} QR codes generated for ${workersCount} workers, ${emailsSent} emails sent, ${emailsFailed} failed`);
+
     return new Response(
-      JSON.stringify({ success: true, results }),
+      JSON.stringify({ 
+        success: true, 
+        generated: generatedCount,
+        workers: workersCount,
+        emails_sent: emailsSent,
+        emails_failed: emailsFailed,
+        results 
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {

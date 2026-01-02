@@ -33,11 +33,18 @@ export function DashboardHeader() {
       if (error) throw error;
 
       if (data?.generated > 0) {
-        toast.success(`Generated ${data.generated} QR codes for ${data.workers} workers`);
+        const emailInfo = data.emails_sent > 0 
+          ? ` (${data.emails_sent} emails sent${data.emails_failed > 0 ? `, ${data.emails_failed} failed` : ''})` 
+          : '';
+        toast.success(`Generated ${data.generated} QR codes for ${data.workers} workers${emailInfo}`);
+      } else if (data?.results?.length > 0) {
+        // QR codes existed but may have been regenerated
+        const emailsSent = data.emails_sent || 0;
+        toast.success(`QR codes ready! ${emailsSent} emails sent.`);
       } else if (data?.message) {
         toast.info(data.message);
       } else {
-        toast.info('No QR codes needed - all workers already have codes for today');
+        toast.info('No active workers found to generate QR codes for');
       }
     } catch (error: any) {
       console.error('Error generating QR codes:', error);
