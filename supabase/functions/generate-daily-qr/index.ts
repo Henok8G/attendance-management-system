@@ -180,6 +180,37 @@ function buildEmailHTML(
   `;
 }
 
+// Parse and format the from address properly
+function formatFromAddress(fromStr: string): string {
+  // If it's already a valid email format, return as-is
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (emailRegex.test(fromStr.trim())) {
+    return fromStr.trim();
+  }
+  
+  // Check if it's in "Name <email>" format
+  const namedEmailRegex = /^(.+?)\s*<([^\s@]+@[^\s@]+\.[^\s@]+)>$/;
+  const namedMatch = fromStr.match(namedEmailRegex);
+  if (namedMatch) {
+    return fromStr.trim();
+  }
+  
+  // Try to extract email from "Name email@domain.com" format
+  const extractEmailRegex = /([^\s@]+@[^\s@]+\.[^\s@]+)/;
+  const emailMatch = fromStr.match(extractEmailRegex);
+  if (emailMatch) {
+    const email = emailMatch[1];
+    const name = fromStr.replace(email, '').trim();
+    if (name) {
+      return `"${name}" <${email}>`;
+    }
+    return email;
+  }
+  
+  // Fallback: return as-is and let SMTP handle validation
+  return fromStr;
+}
+
 // Send email using SMTP (Gmail compatible)
 async function sendEmailViaSMTP(
   smtpConfig: SMTPConfig,
@@ -204,10 +235,12 @@ async function sendEmailViaSMTP(
       },
     });
 
-    console.log(`📧 Sending email to ${to}...`);
+    // Format the from address properly
+    const formattedFrom = formatFromAddress(smtpConfig.from);
+    console.log(`📧 Sending email to ${to} from ${formattedFrom}...`);
     
     await client.send({
-      from: smtpConfig.from,
+      from: formattedFrom,
       to: to,
       subject: subject,
       content: "Please view this email in an HTML-compatible email client.",
