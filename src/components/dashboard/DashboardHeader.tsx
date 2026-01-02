@@ -27,6 +27,7 @@ export function DashboardHeader() {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
+        body: { force: true }, // Always generate both check-in and check-out QR codes
       });
 
       if (error) throw error;
