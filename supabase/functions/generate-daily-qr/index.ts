@@ -223,11 +223,16 @@ async function sendEmailViaSMTP(
   try {
     console.log(`📧 Connecting to SMTP server ${smtpConfig.hostname}:${smtpConfig.port}...`);
     
+    // For Gmail SMTP:
+    // Port 587 uses STARTTLS (tls: false, then upgrade)
+    // Port 465 uses direct TLS (tls: true)
+    const useDirectTls = smtpConfig.port === 465;
+    
     client = new SMTPClient({
       connection: {
         hostname: smtpConfig.hostname,
         port: smtpConfig.port,
-        tls: true,
+        tls: useDirectTls,
         auth: {
           username: smtpConfig.username,
           password: smtpConfig.password,
