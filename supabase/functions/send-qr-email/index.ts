@@ -113,9 +113,11 @@ async function sendQREmail(
               
               <!-- QR Code -->
               <div style="background: white; padding: 25px; border-radius: 12px; text-align: center; margin: 30px 0;">
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(scanUrl)}&color=1a1a2e" 
-                     alt="QR Code" 
-                     style="max-width: 200px; height: auto; border-radius: 8px;" />
+                <img src="https://quickchart.io/qr?text=${encodeURIComponent(scanUrl)}&size=200&margin=1" 
+                     alt="QR Code for ${typeLabel}" 
+                     width="200" 
+                     height="200"
+                     style="display: block; margin: 0 auto; border-radius: 8px;" />
                 <p style="color: #666; font-size: 12px; margin: 15px 0 0 0;">Scan with your phone camera or the barbershop scanner</p>
               </div>
               
