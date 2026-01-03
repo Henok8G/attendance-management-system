@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.send-qr-email]
 verify_jwt = true
+
+[functions.send-scheduled-qr-emails]
+verify_jwt = false
