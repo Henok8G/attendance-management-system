@@ -4,10 +4,10 @@ project_id = "qlobfbzhjtzzdjqxcrhu"
 verify_jwt = true
 
 [functions.validate-qr-scan]
-verify_jwt = false
+verify_jwt = true
 
 [functions.scan-attendance]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-qr-email]
 verify_jwt = true

@@ -85,19 +85,18 @@ function createEthiopiaTimestamp(dateStr: string, timeStr: string): Date {
   return date;
 }
 
-// Generate QR code image URL
-function generateQRCodeImageUrl(scanUrl: string): string {
-  const encodedUrl = encodeURIComponent(scanUrl);
-  return `https://quickchart.io/qr?text=${encodedUrl}&size=200&margin=1`;
+// Generate QR code image URL - encodes only the raw token (not a URL)
+function generateQRCodeImageUrl(qrToken: string): string {
+  const encodedToken = encodeURIComponent(qrToken);
+  return `https://quickchart.io/qr?text=${encodedToken}&size=200&margin=1`;
 }
 
-// Build email HTML content
+// Build email HTML content - NO clickable links, token-only QR
 function buildEmailHTML(
   workerName: string,
   typeLabel: string,
   genType: string,
   date: string,
-  scanUrl: string,
   validFromTime: string,
   validUntilTime: string,
   qrImageUrl: string
@@ -129,7 +128,7 @@ function buildEmailHTML(
           <p style="color: #e0e0e0; font-size: 18px; margin: 0 0 10px 0;">Hello <strong style="color: #c4a747;">${workerName}</strong>,</p>
           <p style="color: #b0b0b0; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
             Here is your ${typeLabel.toLowerCase()} QR code for <strong style="color: #fff;">${date}</strong>. 
-            Please scan this code at the designated scanner when you ${genType === 'check_in' ? 'arrive' : 'leave'}.
+            <strong style="color: #c4a747;">Present this QR code to the scanner at the barbershop</strong> when you ${genType === 'check_in' ? 'arrive' : 'leave'}.
           </p>
           
           <!-- QR Code -->
@@ -139,15 +138,19 @@ function buildEmailHTML(
                  width="200" 
                  height="200"
                  style="display: block; margin: 0 auto; border-radius: 8px;" />
-            <p style="color: #666; font-size: 12px; margin: 15px 0 0 0;">Scan with your phone camera or the barbershop scanner</p>
+            <p style="color: #666; font-size: 12px; margin: 15px 0 0 0;">
+              <strong>Present this QR code to the designated scanner</strong>
+            </p>
           </div>
           
-          <!-- CTA Button -->
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${scanUrl}" 
-               style="display: inline-block; background: linear-gradient(90deg, #c4a747 0%, #d4b957 100%); color: #1a1a1a; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 15px rgba(196, 167, 71, 0.4);">
-              ${genType === 'check_in' ? '🏁 Scan Check-In' : '🏠 Scan Check-Out'}
-            </a>
+          <!-- Instructions -->
+          <div style="background: rgba(196, 167, 71, 0.1); border: 2px solid rgba(196, 167, 71, 0.3); padding: 20px; border-radius: 10px; margin: 30px 0; text-align: center;">
+            <p style="color: #c4a747; font-size: 16px; margin: 0; font-weight: 600;">
+              📍 How to use this QR code
+            </p>
+            <p style="color: #e0e0e0; font-size: 14px; margin: 10px 0 0 0; line-height: 1.6;">
+              Show this QR code to the scanner at the barbershop entrance. The scanner operator will scan it to record your ${genType === 'check_in' ? 'arrival' : 'departure'}.
+            </p>
           </div>
           
           <!-- Time Info -->
@@ -543,16 +546,14 @@ Deno.serve(async (req) => {
         // Send email via SMTP and track delivery
         if (worker.email && smtpConfig && qrCodeId) {
           try {
-            const scanUrl = `${appUrl}/scan?token=${qrToken}`;
             const typeLabel = genType === "check_in" ? "Check-In" : "Check-Out";
-            const qrImageUrl = generateQRCodeImageUrl(scanUrl);
+            const qrImageUrl = generateQRCodeImageUrl(qrToken);
             
             const html = buildEmailHTML(
               worker.name,
               typeLabel,
               genType,
               todayDate,
-              scanUrl,
               validFromTime,
               validUntilTime,
               qrImageUrl
