@@ -1,79 +1,110 @@
-CMAC Barbershop Management System
-Overview
+# Attendance Managment Dashboard
 
-CMAC Barbershop is a modern barbershop management system designed to help a barbershop owner efficiently manage daily operations. The system is built for an owner-managed shop, giving full control over appointments, services, barbers, and customers from one central platform.
+BarberFlow is a modern staff management and attendance tracking dashboard built to manage daily check-ins, check-outs, QR-based attendance validation, and incident reporting for barbershops and similar businesses.
 
-Key Features
+The system is designed with security, scalability, and real-world workflows in mind and integrates tightly with Supabase for authentication, database, and edge functions.
 
-Owner-managed dashboard
+---
 
-Appointment scheduling & tracking
+## Features
 
-Barber management (availability and assignments)
+- 🔐 Secure authentication using Supabase Auth  
+- 📅 Daily QR code generation for attendance tracking  
+- 📲 QR-based check-in and check-out flow  
+- ⚠️ Incident logging and tracking  
+- 👥 Worker management with owner-based access control (RLS)  
+- 📊 Attendance history and status visibility  
+- ✉️ Optional QR delivery via email (SMTP / Resend supported)  
 
-Service & pricing management
+---
 
-Customer records
+## Tech Stack
 
-Daily operations overview
+- **Frontend:** React + TypeScript  
+- **Build Tool:** Vite  
+- **UI:** Tailwind CSS + shadcn/ui  
+- **Backend:** Supabase (PostgreSQL, Auth, Edge Functions)  
 
-User Roles
-Owner (Manager)
+---
 
-Manage barbers and services
+## Project Structure
 
-View, create, and update appointments
+src/
+components/ # Reusable UI components
+pages/ # Application pages
+integrations/ # Supabase client & external services
+supabase/
+functions/ # Edge functions (QR, attendance, email)
 
-Oversee daily shop operations
+yaml
+Copy code
 
-Update pricing, availability, and schedules
+---
 
-Project Purpose
+## Getting Started (Local Development)
 
-The purpose of this project is to provide a simple, efficient, and organized solution for managing a barbershop where the owner acts as the manager. It reduces manual work, improves organization, and enhances the customer experience.
+### Prerequisites
 
-Technologies Used
+- Node.js (v18+ recommended)
+- npm or pnpm
+- Supabase project (URL + anon key)
 
-Frontend: (e.g. HTML, CSS, JavaScript, React)
+### Setup
 
-Backend: (e.g. Node.js, Express, Python, Java)
+```bash
+# Clone the repository
+git clone <YOUR_GIT_REPO_URL>
 
-Database: (e.g. MongoDB, MySQL)
+# Enter the project directory
+cd barberflow-dashboard
 
-Installation
-
-Clone the repository
-
-git clone https://github.com/Henok8G
-
-
-Navigate to the project directory
-
-cd cmac-barbershop
-
-
-Install dependencies
-
+# Install dependencies
 npm install
 
+# Start development server
+npm run dev
+Environment Variables
+Create a .env file in the project root:
 
-Run the application
+env
+Copy code
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+If email delivery is enabled:
 
-npm start
+env
+Copy code
+RESEND_API_KEY=your_resend_key
+Deployment
+This project can be deployed on any modern frontend hosting platform.
 
-Future Enhancements
+Recommended options:
 
-Online customer booking
+Vercel
 
-Payment processing
+Netlify
 
-Reports & analytics
+Cloudflare Pages
 
-Mobile-friendly design
+After deployment, make sure to configure the same environment variables in your hosting provider.
 
-Notifications & reminders
+Security Notes
+Row Level Security (RLS) is enforced in Supabase
 
-Author
+Owners can only access their own data
 
-CMAC Barbershop Management System
-Developed by Henok.G
+Scanner and staff access is strictly limited
+
+QR tokens are validated server-side
+
+Scanner Integration
+This dashboard is designed to work with a separate scanner web app that:
+
+Authenticates via Supabase
+
+Scans token-only QR codes
+
+Calls secure edge functions to validate attendance
+
+Both apps must use the same Supabase project.
+
