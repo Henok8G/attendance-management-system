@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.validate-scan]
 verify_jwt = false
+
+[functions.get-attendance-history]
+verify_jwt = false
