@@ -37,7 +37,12 @@ export function AttendanceTable({ attendance, workers, incidents, loading, selec
   };
 
   const getWorkerIncident = (workerId: string) => {
-    return incidents.find((i) => i.worker_id === workerId);
+    return incidents.find((i) => {
+      if (i.worker_id !== workerId) return false;
+      // Only show incidents that occurred on the selected date
+      const incidentDate = i.occurred_at.split('T')[0];
+      return incidentDate === selectedDate;
+    });
   };
 
   // Combine attendance with absent workers
