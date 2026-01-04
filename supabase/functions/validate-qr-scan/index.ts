@@ -501,8 +501,9 @@ Deno.serve(async (req) => {
     } else {
       // Check-out logic
       newStatus = "out";
+      let isLateCheckout = false;
       
-      // Detect early checkout
+      // Detect early checkout (before scheduled end time)
       if (currentMinutes < endMinutes) {
         isEarlyCheckout = true;
         incidentCreated = true;
@@ -516,6 +517,23 @@ Deno.serve(async (req) => {
         });
         
         console.log(`Early checkout incident logged for ${worker.name}`);
+      }
+      
+      // Detect late checkout (more than 30 minutes after scheduled end time)
+      const lateCheckoutThreshold = 30; // minutes
+      if (currentMinutes > endMinutes + lateCheckoutThreshold) {
+        isLateCheckout = true;
+        incidentCreated = true;
+        
+        await supabase.from("incidents").insert({
+          worker_id: worker.id,
+          owner_id: ownerId,
+          incident_type: "late_checkout",
+          description: `Checked out at ${currentTimeStr}, scheduled end was ${workerEndTime} (${currentMinutes - endMinutes} minutes late)`,
+          scanner_id: scanner_id || null,
+        });
+        
+        console.log(`Late checkout incident logged for ${worker.name}`);
       }
 
       // Update attendance with check-out
@@ -537,7 +555,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      console.log(`Check-out recorded for ${worker.name}, isEarly: ${isEarlyCheckout}, time: ${currentTimeStr}`);
+      console.log(`Check-out recorded for ${worker.name}, isEarly: ${isEarlyCheckout}, isLate: ${isLateCheckout}, time: ${currentTimeStr}`);
     }
 
     // ========== SUCCESS RESPONSE ==========
