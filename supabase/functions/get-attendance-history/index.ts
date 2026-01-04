@@ -13,17 +13,35 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    
-    // Use service role to bypass RLS
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Missing authorization' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
-    // Get worker_id from request body or query params
-    const url = new URL(req.url);
-    let workerId = url.searchParams.get('worker_id');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
     
-    if (!workerId && req.method === 'POST') {
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    })
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Use service role to bypass RLS for fetching worker data
+    const supabaseAdmin = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
+
+    // Get worker_id from request body
+    let workerId = null;
+    if (req.method === 'POST') {
       try {
         const body = await req.json();
         workerId = body.worker_id || body.staff_id;
@@ -41,17 +59,24 @@ Deno.serve(async (req) => {
 
     console.log(`Fetching attendance history for worker: ${workerId}`);
 
-    // Fetch attendance records from BarberFlow's attendance table
-    const { data: logs, error: logsError } = await supabase
+    // Get worker profile for name (adapted from staff_profiles)
+    const { data: worker } = await supabaseAdmin
+      .from('workers')
+      .select('name')
+      .eq('id', workerId)
+      .maybeSingle()
+
+    // Get attendance logs (adapted from attendance_logs to attendance)
+    const { data: logs, error: logsError } = await supabaseAdmin
       .from('attendance')
-      .select('id, status, check_in, check_out, date, is_late, notes')
+      .select('id, status, check_in, check_out, date, is_late')
       .eq('worker_id', workerId)
       .order('date', { ascending: false })
       .order('check_in', { ascending: false })
       .limit(50)
 
     if (logsError) {
-      console.error('Error fetching logs:', logsError);
+      console.error('Error fetching logs:', logsError)
       return new Response(JSON.stringify({ error: 'Failed to fetch history' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -66,17 +91,19 @@ Deno.serve(async (req) => {
       check_in: log.check_in,
       check_out: log.check_out,
       date: log.date,
-      is_late: log.is_late,
-      notes: log.notes
-    })) || [];
+      is_late: log.is_late
+    })).filter(log => log.status !== 'INCIDENT') || [];
 
-    console.log(`Found ${transformedLogs.length} attendance records`);
+    console.log(`Found ${transformedLogs.length} attendance records for ${worker?.name || 'Unknown'}`);
 
-    return new Response(JSON.stringify({ logs: transformedLogs }), {
+    return new Response(JSON.stringify({ 
+      logs: transformedLogs,
+      staffName: worker?.name || 'Unknown'
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error:', error)
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
