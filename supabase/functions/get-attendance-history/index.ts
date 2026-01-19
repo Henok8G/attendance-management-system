@@ -1,3 +1,4 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -5,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-Deno.serve(async (req) => {
+serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -19,28 +20,26 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Decode JWT to extract user ID (without verification for cross-project calls)
+    // Decode JWT to get user ID (cross-project call, can't verify)
     const token = authHeader.replace("Bearer ", "");
-    const [, payloadBase64] = token.split(".");
+    const payloadBase64 = token.split(".")[1];
     const payload = JSON.parse(atob(payloadBase64));
-    const odooStaffId = payload.sub;
+    const userId = payload.sub;
 
-    if (!odooStaffId) {
+    if (!userId) {
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Get worker_id from request body (Staff Scan Hub sends this)
+    // Get worker_id from request body
     let workerId = null;
-    if (req.method === "POST") {
-      try {
-        const body = await req.json();
-        workerId = body.worker_id || body.staff_id;
-      } catch {
-        // No body provided
-      }
+    try {
+      const body = await req.json();
+      workerId = body.worker_id || body.staff_id;
+    } catch {
+      // No body or invalid JSON
     }
 
     if (!workerId) {
@@ -50,30 +49,22 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Use service role to query database (bypasses RLS)
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Get worker profile (equivalent to staff_profiles)
-    const { data: worker } = await supabase
+    // Get worker name (equivalent to staff_profiles)
+    const { data: profile } = await supabase
       .from("workers")
-      .select("name, is_active")
+      .select("name")
       .eq("id", workerId)
-      .single();
+      .maybeSingle();
 
-    if (!worker) {
-      return new Response(JSON.stringify({ error: "Worker not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Fetch attendance logs (adapted from attendance table)
+    // Get attendance logs (from attendance table, transform to match expected format)
     const { data: attendanceRecords, error } = await supabase
       .from("attendance")
-      .select("id, status, check_in, check_out, date, is_late")
+      .select("id, status, check_in, check_out, date")
       .eq("worker_id", workerId)
       .order("date", { ascending: false })
       .order("check_in", { ascending: false })
@@ -91,7 +82,7 @@ Deno.serve(async (req) => {
       }));
 
     return new Response(
-      JSON.stringify({ logs, staffName: worker.name }),
+      JSON.stringify({ logs, staffName: profile?.name || "Staff" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
