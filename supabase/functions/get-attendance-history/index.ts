@@ -61,14 +61,19 @@ serve(async (req) => {
       .eq("id", workerId)
       .maybeSingle();
 
-    // Get attendance logs (from attendance table, transform to match expected format)
+    // Get attendance logs - fetch last 30 days of history
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const dateFilter = thirtyDaysAgo.toISOString().split('T')[0];
+
     const { data: attendanceRecords, error } = await supabase
       .from("attendance")
       .select("id, status, check_in, check_out, date")
       .eq("worker_id", workerId)
+      .gte("date", dateFilter)
       .order("date", { ascending: false })
       .order("check_in", { ascending: false })
-      .limit(50);
+      .limit(100);
 
     if (error) throw error;
 
