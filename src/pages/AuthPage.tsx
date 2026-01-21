@@ -12,22 +12,31 @@ import { Scissors, Loader2 } from 'lucide-react';
 
 export default function AuthPage() {
   const navigate = useNavigate();
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signUp, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [signupForm, setSignupForm] = useState({ email: '', password: '', fullName: '' });
 
-  // Redirect if already logged in
-  if (user) {
+  // Redirect if already logged in (only after auth state is resolved)
+  if (!authLoading && user) {
     navigate('/dashboard');
     return null;
   }
 
+  // Show loading while auth state is being determined
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-brand-gold" />
+      </div>
+    );
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
 
     const { error } = await signIn(loginForm.email, loginForm.password);
 
@@ -45,12 +54,12 @@ export default function AuthPage() {
       navigate('/dashboard');
     }
 
-    setLoading(false);
+    setSubmitting(false);
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
 
     const { error } = await signUp(signupForm.email, signupForm.password, signupForm.fullName);
 
@@ -68,7 +77,7 @@ export default function AuthPage() {
       navigate('/dashboard');
     }
 
-    setLoading(false);
+    setSubmitting(false);
   };
 
   return (
@@ -135,8 +144,8 @@ export default function AuthPage() {
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full gradient-gold text-brand-black font-semibold hover:opacity-90" disabled={loading}>
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  <Button type="submit" className="w-full gradient-gold text-brand-black font-semibold hover:opacity-90" disabled={submitting}>
+                    {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     Sign In
                   </Button>
                 </form>
@@ -178,8 +187,8 @@ export default function AuthPage() {
                       minLength={6}
                     />
                   </div>
-                  <Button type="submit" className="w-full gradient-gold text-brand-black font-semibold hover:opacity-90" disabled={loading}>
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  <Button type="submit" className="w-full gradient-gold text-brand-black font-semibold hover:opacity-90" disabled={submitting}>
+                    {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     Create Account
                   </Button>
                 </form>
