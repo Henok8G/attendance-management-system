@@ -2,7 +2,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Search, CalendarIcon, AlertTriangle } from 'lucide-react';
+import { Search, CalendarIcon, AlertTriangle, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseYYYYMMDD, formatToYYYYMMDD } from '@/lib/timezone';
 
@@ -15,6 +15,7 @@ interface FilterBarProps {
   onViewModeChange: (mode: 'daily' | 'weekly') => void;
   showIncidentsOnly: boolean;
   onShowIncidentsOnlyChange: (value: boolean) => void;
+  onOpenWeeklyHistory?: () => void;
 }
 
 export function FilterBar({
@@ -26,6 +27,7 @@ export function FilterBar({
   onViewModeChange,
   showIncidentsOnly,
   onShowIncidentsOnlyChange,
+  onOpenWeeklyHistory,
 }: FilterBarProps) {
   // Parse the date correctly in Africa/Addis_Ababa timezone to avoid off-by-one bugs
   const date = parseYYYYMMDD(selectedDate);
@@ -63,6 +65,18 @@ export function FilterBar({
       </div>
 
       <div className="flex gap-2">
+        {onOpenWeeklyHistory && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenWeeklyHistory}
+            className="gap-1"
+          >
+            <History className="w-4 h-4" />
+            <span className="hidden sm:inline">Weekly History</span>
+          </Button>
+        )}
+
         <Button
           variant={showIncidentsOnly ? 'default' : 'outline'}
           size="sm"

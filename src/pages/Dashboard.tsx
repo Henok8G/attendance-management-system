@@ -11,6 +11,7 @@ import { SummaryCards } from '@/components/dashboard/SummaryCards';
 import { AttendanceTable } from '@/components/dashboard/AttendanceTable';
 import { FilterBar } from '@/components/dashboard/FilterBar';
 import { WorkerModal } from '@/components/dashboard/WorkerModal';
+import { WeeklyHistoryModal } from '@/components/dashboard/WeeklyHistoryModal';
 import { Loader2 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -27,6 +28,7 @@ export default function Dashboard() {
   const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [showIncidentsOnly, setShowIncidentsOnly] = useState(false);
+  const [showWeeklyHistory, setShowWeeklyHistory] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -168,6 +170,7 @@ export default function Dashboard() {
             onViewModeChange={setViewMode}
             showIncidentsOnly={showIncidentsOnly}
             onShowIncidentsOnlyChange={setShowIncidentsOnly}
+            onOpenWeeklyHistory={() => setShowWeeklyHistory(true)}
           />
         </motion.div>
 
@@ -194,6 +197,12 @@ export default function Dashboard() {
         open={!!selectedWorker}
         onClose={() => setSelectedWorker(null)}
         onUpdate={fetchData}
+      />
+
+      <WeeklyHistoryModal
+        open={showWeeklyHistory}
+        onClose={() => setShowWeeklyHistory(false)}
+        workers={workers}
       />
     </div>
   );
