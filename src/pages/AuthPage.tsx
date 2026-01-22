@@ -28,8 +28,14 @@ export default function AuthPage() {
   // Show loading while auth state is being determined
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-brand-gold" />
+      <div 
+        className="min-h-screen flex items-center justify-center bg-background"
+        style={{ backgroundColor: '#fafafa' }}
+      >
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-brand-gold" />
+          <p className="text-muted-foreground text-sm">Loading...</p>
+        </div>
       </div>
     );
   }
