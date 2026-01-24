@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
+import { DayScheduleSettings } from '@/components/settings/DayScheduleSettings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -177,6 +178,11 @@ export default function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Day-Specific Schedules */}
+          <div className="mt-6">
+            <DayScheduleSettings />
+          </div>
         </motion.div>
       </main>
     </div>

@@ -169,8 +169,11 @@ Deno.serve(async (req) => {
     const currentHour = ethiopiaTime.getHours();
     const currentMinute = ethiopiaTime.getMinutes();
     const currentMinutes = currentHour * 60 + currentMinute;
+    
+    // Get day of week (0=Sunday, 1=Monday, ..., 5=Friday, 6=Saturday)
+    const dayOfWeek = ethiopiaTime.getDay();
 
-    console.log(`Current Ethiopia time: ${currentHour}:${currentMinute}, date: ${todayDate}`);
+    console.log(`Current Ethiopia time: ${currentHour}:${currentMinute}, date: ${todayDate}, day: ${dayOfWeek}`);
 
     // Get settings for default times
     const { data: settingsData } = await supabase
@@ -182,6 +185,21 @@ Deno.serve(async (req) => {
 
     const defaultStartTime = settingsData?.default_start_time || "08:00";
     const defaultEndTime = settingsData?.default_end_time || "17:00";
+
+    // Check for day-specific schedule override
+    const { data: daySchedule } = await supabase
+      .from("day_schedules")
+      .select("start_time, end_time, is_enabled")
+      .eq("owner_id", user.id)
+      .eq("day_of_week", dayOfWeek)
+      .eq("is_enabled", true)
+      .maybeSingle();
+
+    // Use day-specific schedule if available, otherwise use defaults
+    const effectiveDefaultStartTime = daySchedule?.start_time || defaultStartTime;
+    const effectiveDefaultEndTime = daySchedule?.end_time || defaultEndTime;
+
+    console.log(`Using schedule: start=${effectiveDefaultStartTime}, end=${effectiveDefaultEndTime} (day override: ${!!daySchedule})`)
 
     // Build worker query - only get workers owned by this user
     let workersQuery = supabase
@@ -221,8 +239,10 @@ Deno.serve(async (req) => {
     const results: QRResult[] = [];
 
     for (const worker of workers) {
-      const workerStartTime = worker.custom_start_time || defaultStartTime;
-      const workerEndTime = worker.custom_end_time || defaultEndTime;
+      // Worker custom times take precedence, then day schedule, then defaults
+      const workerStartTime = worker.custom_start_time || effectiveDefaultStartTime;
+      const workerEndTime = worker.custom_end_time || effectiveDefaultEndTime;
+      
 
       const startTimeMinutes = parseTime(workerStartTime).hours * 60 + parseTime(workerStartTime).minutes;
       const endTimeMinutes = parseTime(workerEndTime).hours * 60 + parseTime(workerEndTime).minutes;

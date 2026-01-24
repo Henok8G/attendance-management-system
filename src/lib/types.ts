@@ -83,6 +83,17 @@ export interface Settings {
   updated_at: string;
 }
 
+export interface DaySchedule {
+  id: string;
+  owner_id: string;
+  day_of_week: number; // 0=Sunday, 1=Monday, ..., 5=Friday, 6=Saturday
+  start_time: string;
+  end_time: string;
+  is_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AdminProfile {
   id: string;
   user_id: string;

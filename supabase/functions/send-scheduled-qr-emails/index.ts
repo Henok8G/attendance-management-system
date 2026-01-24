@@ -318,8 +318,18 @@ Deno.serve(async (req) => {
     const todayDate = getEthiopiaDate();
     const { hours: currentHour, minutes: currentMinute } = getEthiopiaTime();
     const currentTotalMinutes = currentHour * 60 + currentMinute;
+    
+    // Get day of week (0=Sunday, 1=Monday, ..., 5=Friday, 6=Saturday)
+    const now = new Date();
+    const dayFormatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: TIMEZONE,
+      weekday: "short",
+    });
+    const dayStr = dayFormatter.format(now);
+    const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const dayOfWeek = dayMap[dayStr] ?? 0;
 
-    console.log(`📅 Today: ${todayDate}, Current time: ${currentHour}:${String(currentMinute).padStart(2, '0')} (${currentTotalMinutes} mins)`);
+    console.log(`📅 Today: ${todayDate}, Day: ${dayOfWeek}, Current time: ${currentHour}:${String(currentMinute).padStart(2, '0')} (${currentTotalMinutes} mins)`);
 
     // Get all owner settings for default times
     const { data: allSettings, error: settingsError } = await supabase
@@ -335,6 +345,19 @@ Deno.serve(async (req) => {
     const settingsMap = new Map<string, Settings>();
     for (const s of (allSettings || [])) {
       settingsMap.set(s.owner_id, s as Settings);
+    }
+
+    // Get all day-specific schedules for today's day of week
+    const { data: daySchedules } = await supabase
+      .from("day_schedules")
+      .select("owner_id, start_time, end_time, is_enabled")
+      .eq("day_of_week", dayOfWeek)
+      .eq("is_enabled", true);
+
+    // Create a map of owner_id to their day-specific schedule
+    const dayScheduleMap = new Map<string, { start_time: string; end_time: string }>();
+    for (const ds of (daySchedules || [])) {
+      dayScheduleMap.set(ds.owner_id, { start_time: ds.start_time, end_time: ds.end_time });
     }
 
     // Get all active workers with email
@@ -372,8 +395,11 @@ Deno.serve(async (req) => {
 
     for (const worker of workers as Worker[]) {
       const ownerSettings = settingsMap.get(worker.owner_id);
-      const defaultStartTime = ownerSettings?.default_start_time || "09:00";
-      const defaultEndTime = ownerSettings?.default_end_time || "18:00";
+      const daySchedule = dayScheduleMap.get(worker.owner_id);
+      
+      // Priority: worker custom > day schedule > owner default
+      const defaultStartTime = daySchedule?.start_time || ownerSettings?.default_start_time || "09:00";
+      const defaultEndTime = daySchedule?.end_time || ownerSettings?.default_end_time || "18:00";
 
       const workerStartTime = worker.custom_start_time || defaultStartTime;
       const workerEndTime = worker.custom_end_time || defaultEndTime;
