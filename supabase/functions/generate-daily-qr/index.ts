@@ -239,9 +239,10 @@ Deno.serve(async (req) => {
     const results: QRResult[] = [];
 
     for (const worker of workers) {
-      // Worker custom times take precedence, then day schedule, then defaults
-      const workerStartTime = worker.custom_start_time || effectiveDefaultStartTime;
-      const workerEndTime = worker.custom_end_time || effectiveDefaultEndTime;
+      // Priority: Day-specific schedule OVERRIDES everything, then worker custom, then defaults
+      // If there's a day schedule, use it for ALL workers (ignores worker custom times)
+      const workerStartTime = daySchedule ? effectiveDefaultStartTime : (worker.custom_start_time || effectiveDefaultStartTime);
+      const workerEndTime = daySchedule ? effectiveDefaultEndTime : (worker.custom_end_time || effectiveDefaultEndTime);
       
 
       const startTimeMinutes = parseTime(workerStartTime).hours * 60 + parseTime(workerStartTime).minutes;

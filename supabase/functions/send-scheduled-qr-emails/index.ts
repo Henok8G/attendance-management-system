@@ -397,12 +397,13 @@ Deno.serve(async (req) => {
       const ownerSettings = settingsMap.get(worker.owner_id);
       const daySchedule = dayScheduleMap.get(worker.owner_id);
       
-      // Priority: worker custom > day schedule > owner default
-      const defaultStartTime = daySchedule?.start_time || ownerSettings?.default_start_time || "09:00";
-      const defaultEndTime = daySchedule?.end_time || ownerSettings?.default_end_time || "18:00";
+      // Priority: Day-specific schedule OVERRIDES everything (including worker custom times)
+      // If there's a day schedule, ALL workers use it; otherwise fall back to worker custom or defaults
+      const defaultStartTime = ownerSettings?.default_start_time || "09:00";
+      const defaultEndTime = ownerSettings?.default_end_time || "18:00";
 
-      const workerStartTime = worker.custom_start_time || defaultStartTime;
-      const workerEndTime = worker.custom_end_time || defaultEndTime;
+      const workerStartTime = daySchedule ? daySchedule.start_time : (worker.custom_start_time || defaultStartTime);
+      const workerEndTime = daySchedule ? daySchedule.end_time : (worker.custom_end_time || defaultEndTime);
 
       const startMinutes = parseTimeToMinutes(workerStartTime);
       const endMinutes = parseTimeToMinutes(workerEndTime);
