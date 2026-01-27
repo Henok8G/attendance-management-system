@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Worker, Attendance, Incident, WorkerNote, WorkerRole, EmploymentType, DailyQRCode } from '@/lib/types';
+import { Worker, Attendance, Incident, WorkerNote, WorkerRole, EmploymentType, DailyQRCode, DAY_NAMES } from '@/lib/types';
 import { 
   formatTime, calculateHours, getWeekDates, formatDate, formatFullDate, 
   calculateAge, formatContractDuration, getContractStatus, formatToYYYYMMDD 
@@ -60,6 +60,7 @@ export default function WorkerProfilePage() {
     custom_start_time: '',
     custom_end_time: '',
     email: '',
+    break_day: '' as string,
   });
 
   useEffect(() => {
@@ -102,6 +103,7 @@ export default function WorkerProfilePage() {
       custom_start_time: w.custom_start_time || '',
       custom_end_time: w.custom_end_time || '',
       email: w.email || '',
+      break_day: w.break_day !== null && w.break_day !== undefined ? String(w.break_day) : '',
     });
 
     // Fetch weekly attendance
@@ -205,6 +207,7 @@ export default function WorkerProfilePage() {
       custom_start_time: formData.custom_start_time || null,
       custom_end_time: formData.custom_end_time || null,
       email: formData.email || null,
+      break_day: formData.break_day !== '' ? parseInt(formData.break_day, 10) : null,
       avatar_url: avatarUrl,
     }).eq('id', worker.id);
 
@@ -262,6 +265,12 @@ export default function WorkerProfilePage() {
     return { status: 'active', label: 'Active', color: 'text-brand-gold' };
   };
 
+  // Check if a date is this worker's break day
+  const isBreakDay = (date: Date): boolean => {
+    if (worker?.break_day === null || worker?.break_day === undefined) return false;
+    return date.getDay() === worker.break_day;
+  };
+
   const exportPDF = () => {
     if (!worker) return;
     const doc = new jsPDF();
@@ -273,12 +282,13 @@ export default function WorkerProfilePage() {
       body: weekDates.map((d) => {
         const dateStr = formatToYYYYMMDD(d);
         const att = weeklyAttendance.find((a) => a.date === dateStr);
+        const onBreak = isBreakDay(d);
         return [
           formatDate(d), 
-          formatTime(att?.check_in), 
-          formatTime(att?.check_out), 
-          calculateHours(att?.check_in || null, att?.check_out || null),
-          att?.is_late ? 'Late' : att?.check_in ? 'Present' : 'Absent'
+          onBreak ? '-' : formatTime(att?.check_in), 
+          onBreak ? '-' : formatTime(att?.check_out), 
+          onBreak ? '-' : calculateHours(att?.check_in || null, att?.check_out || null),
+          onBreak ? 'Break' : (att?.is_late ? 'Late' : att?.check_in ? 'Present' : 'Absent')
         ];
       }),
     });
@@ -448,6 +458,18 @@ export default function WorkerProfilePage() {
                   )}
                   <div><Label>Start Time</Label><Input type="time" value={formData.custom_start_time} onChange={(e) => setFormData({ ...formData, custom_start_time: e.target.value })} /></div>
                   <div><Label>End Time</Label><Input type="time" value={formData.custom_end_time} onChange={(e) => setFormData({ ...formData, custom_end_time: e.target.value })} /></div>
+                  <div>
+                    <Label>Weekly Break Day</Label>
+                    <Select value={formData.break_day} onValueChange={(v) => setFormData({ ...formData, break_day: v })}>
+                      <SelectTrigger><SelectValue placeholder="No break day" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">No break day</SelectItem>
+                        {DAY_NAMES.map((day, idx) => (
+                          <SelectItem key={idx} value={String(idx)}>{day}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="sm:col-span-2"><Label>Email (for QR delivery)</Label><Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="worker@example.com" /></div>
                 </div>
               ) : (
@@ -480,6 +502,10 @@ export default function WorkerProfilePage() {
                       <p className="font-medium">{worker.salary}</p>
                     </div>
                   )}
+                  <div>
+                    <p className="text-muted-foreground">Weekly Break</p>
+                    <p className="font-medium">{worker.break_day !== null && worker.break_day !== undefined ? DAY_NAMES[worker.break_day] : 'No break day'}</p>
+                  </div>
                 </div>
               )}
             </CardContent>

@@ -403,6 +403,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           birthdate: string | null
+          break_day: number | null
           contract_end_date: string | null
           created_at: string
           custom_end_time: string | null
@@ -423,6 +424,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           birthdate?: string | null
+          break_day?: number | null
           contract_end_date?: string | null
           created_at?: string
           custom_end_time?: string | null
@@ -443,6 +445,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           birthdate?: string | null
+          break_day?: number | null
           contract_end_date?: string | null
           created_at?: string
           custom_end_time?: string | null

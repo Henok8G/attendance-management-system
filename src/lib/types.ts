@@ -1,4 +1,7 @@
 export type WorkerRole = 'barber' | 'cleaner' | 'receptionist' | 'manager';
+
+// Day of week mapping (0=Sunday, 1=Monday, ..., 6=Saturday)
+export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 export type AttendanceStatus = 'in' | 'out' | 'late' | 'absent';
 export type EmploymentType = 'contract' | 'full_time';
 
@@ -21,6 +24,7 @@ export interface Worker {
   contract_end_date: string | null;
   hire_date: string | null;
   email: string | null;
+  break_day: number | null; // 0=Sunday, 1=Monday, ..., 6=Saturday
 }
 
 export interface DailyQRCode {
