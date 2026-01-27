@@ -204,7 +204,7 @@ Deno.serve(async (req) => {
     // Build worker query - only get workers owned by this user
     let workersQuery = supabase
       .from("workers")
-      .select("id, name, email, custom_start_time, custom_end_time, is_active")
+      .select("id, name, email, custom_start_time, custom_end_time, is_active, break_day")
       .eq("is_active", true)
       .eq("owner_id", user.id);
 
@@ -239,11 +239,22 @@ Deno.serve(async (req) => {
     const results: QRResult[] = [];
 
     for (const worker of workers) {
+      // Skip workers on their break day
+      if (worker.break_day !== null && worker.break_day !== undefined && worker.break_day === dayOfWeek) {
+        console.log(`⏸️ Skipping ${worker.name} - today is their break day (${dayOfWeek})`);
+        results.push({
+          worker_id: worker.id,
+          worker_name: worker.name,
+          type: "break",
+          status: "break_day",
+        });
+        continue;
+      }
+
       // Priority: Day-specific schedule OVERRIDES everything, then worker custom, then defaults
       // If there's a day schedule, use it for ALL workers (ignores worker custom times)
       const workerStartTime = daySchedule ? effectiveDefaultStartTime : (worker.custom_start_time || effectiveDefaultStartTime);
       const workerEndTime = daySchedule ? effectiveDefaultEndTime : (worker.custom_end_time || effectiveDefaultEndTime);
-      
 
       const startTimeMinutes = parseTime(workerStartTime).hours * 60 + parseTime(workerStartTime).minutes;
       const endTimeMinutes = parseTime(workerEndTime).hours * 60 + parseTime(workerEndTime).minutes;

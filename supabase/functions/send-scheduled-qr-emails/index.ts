@@ -23,6 +23,7 @@ interface Worker {
   owner_id: string;
   custom_start_time: string | null;
   custom_end_time: string | null;
+  break_day: number | null;
 }
 
 interface Settings {
@@ -360,10 +361,10 @@ Deno.serve(async (req) => {
       dayScheduleMap.set(ds.owner_id, { start_time: ds.start_time, end_time: ds.end_time });
     }
 
-    // Get all active workers with email
+    // Get all active workers with email (include break_day)
     const { data: workers, error: workersError } = await supabase
       .from("workers")
-      .select("id, name, email, owner_id, custom_start_time, custom_end_time")
+      .select("id, name, email, owner_id, custom_start_time, custom_end_time, break_day")
       .eq("is_active", true)
       .not("email", "is", null);
 
@@ -394,6 +395,12 @@ Deno.serve(async (req) => {
     }> = [];
 
     for (const worker of workers as Worker[]) {
+      // Skip workers on their break day
+      if (worker.break_day !== null && worker.break_day !== undefined && worker.break_day === dayOfWeek) {
+        console.log(`⏸️ Skipping ${worker.name} - today is their break day`);
+        continue;
+      }
+
       const ownerSettings = settingsMap.get(worker.owner_id);
       const daySchedule = dayScheduleMap.get(worker.owner_id);
       

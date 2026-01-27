@@ -97,6 +97,12 @@ export function WorkerModal({ worker, open, onClose, onUpdate }: WorkerModalProp
     link.click();
   };
 
+  // Check if a date is this worker's break day
+  const isBreakDay = (date: Date): boolean => {
+    if (worker?.break_day === null || worker?.break_day === undefined) return false;
+    return date.getDay() === worker.break_day;
+  };
+
   const exportPDF = () => {
     if (!worker) return;
     const doc = new jsPDF();
@@ -104,11 +110,18 @@ export function WorkerModal({ worker, open, onClose, onUpdate }: WorkerModalProp
     const weekDates = getWeekDates(new Date());
     autoTable(doc, {
       startY: 30,
-      head: [['Date', 'Check In', 'Check Out', 'Hours']],
+      head: [['Date', 'Check In', 'Check Out', 'Hours', 'Status']],
       body: weekDates.map((d) => {
         const dateStr = formatToYYYYMMDD(d);
         const att = weeklyAttendance.find((a) => a.date === dateStr);
-        return [formatDate(d), formatTime(att?.check_in), formatTime(att?.check_out), calculateHours(att?.check_in || null, att?.check_out || null)];
+        const onBreak = isBreakDay(d);
+        return [
+          formatDate(d), 
+          onBreak ? '-' : formatTime(att?.check_in), 
+          onBreak ? '-' : formatTime(att?.check_out), 
+          onBreak ? '-' : calculateHours(att?.check_in || null, att?.check_out || null),
+          onBreak ? 'Break' : (att?.is_late ? 'Late' : att?.check_in ? 'Present' : 'Absent')
+        ];
       }),
     });
     doc.save(`${worker.name}_weekly_report.pdf`);

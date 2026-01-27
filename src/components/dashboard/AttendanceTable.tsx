@@ -1,11 +1,11 @@
-import { AttendanceWithWorker, Incident, Worker } from '@/lib/types';
+import { AttendanceWithWorker, Incident, Worker, DAY_NAMES } from '@/lib/types';
 import { formatTime, calculateHours } from '@/lib/timezone';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Card } from '@/components/ui/card';
 import { SecureAvatar } from '@/components/ui/SecureAvatar';
-import { Eye, Download, Loader2, AlertTriangle } from 'lucide-react';
+import { Eye, Download, Loader2, AlertTriangle, Coffee } from 'lucide-react';
 import QRCode from 'qrcode';
 
 interface AttendanceTableProps {
@@ -23,6 +23,7 @@ const statusClasses: Record<string, string> = {
   out: 'status-badge status-out',
   late: 'status-badge status-late',
   absent: 'status-badge status-absent',
+  break: 'status-badge bg-blue-500/20 text-blue-400 border-blue-500/30',
 };
 
 export function AttendanceTable({ attendance, workers, incidents, loading, selectedDate, onWorkerClick }: AttendanceTableProps) {
@@ -45,21 +46,30 @@ export function AttendanceTable({ attendance, workers, incidents, loading, selec
     });
   };
 
+  // Check if today is a worker's break day
+  const isWorkerOnBreak = (worker: Worker, dateStr: string): boolean => {
+    if (worker.break_day === null || worker.break_day === undefined) return false;
+    const date = new Date(dateStr + 'T12:00:00'); // Use noon to avoid timezone issues
+    return date.getDay() === worker.break_day;
+  };
+
   // Combine attendance with absent workers
   const attendanceMap = new Map(attendance.map((a) => [a.worker_id, a]));
   const allWorkerRows = workers.map((worker) => {
     const att = attendanceMap.get(worker.id);
+    const onBreak = isWorkerOnBreak(worker, selectedDate);
     return {
       worker,
       attendance: att,
-      status: att?.status || 'absent',
+      status: onBreak ? 'break' : (att?.status || 'absent'),
       isLate: att?.is_late || false,
+      onBreak,
     };
   });
 
   // Sort by status
-  const statusOrder = { in: 0, late: 1, out: 2, absent: 3 };
-  allWorkerRows.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+  const statusOrder: Record<string, number> = { in: 0, late: 1, out: 2, break: 3, absent: 4 };
+  allWorkerRows.sort((a, b) => (statusOrder[a.status] ?? 5) - (statusOrder[b.status] ?? 5));
 
   if (loading) {
     return (
@@ -93,9 +103,9 @@ export function AttendanceTable({ attendance, workers, incidents, loading, selec
             </TableRow>
           </TableHeader>
           <TableBody>
-            {allWorkerRows.map(({ worker, attendance: att, status, isLate }) => {
+            {allWorkerRows.map(({ worker, attendance: att, status, isLate, onBreak }) => {
               const incident = getWorkerIncident(worker.id);
-              const displayStatus = isLate ? 'late' : status;
+              const displayStatus = onBreak ? 'break' : (isLate ? 'late' : status);
 
               return (
                 <TableRow key={worker.id} className={incident ? 'bg-status-late/5' : ''}>
@@ -110,7 +120,13 @@ export function AttendanceTable({ attendance, workers, incidents, loading, selec
                       />
                       <div>
                         <p className="font-medium">{worker.name}</p>
-                        {incident && (
+                        {onBreak && worker.break_day !== null && (
+                          <span className="text-xs text-blue-400 flex items-center gap-1">
+                            <Coffee className="w-3 h-3" />
+                            {DAY_NAMES[worker.break_day]} Break
+                          </span>
+                        )}
+                        {incident && !onBreak && (
                           <Tooltip>
                             <TooltipTrigger>
                               <span className="text-xs text-status-late flex items-center gap-1">
