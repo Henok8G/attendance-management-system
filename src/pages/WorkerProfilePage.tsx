@@ -460,10 +460,13 @@ export default function WorkerProfilePage() {
                   <div><Label>End Time</Label><Input type="time" value={formData.custom_end_time} onChange={(e) => setFormData({ ...formData, custom_end_time: e.target.value })} /></div>
                   <div>
                     <Label>Weekly Break Day</Label>
-                    <Select value={formData.break_day} onValueChange={(v) => setFormData({ ...formData, break_day: v })}>
+                    <Select 
+                      value={formData.break_day || 'none'} 
+                      onValueChange={(v) => setFormData({ ...formData, break_day: v === 'none' ? '' : v })}
+                    >
                       <SelectTrigger><SelectValue placeholder="No break day" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">No break day</SelectItem>
+                        <SelectItem value="none">No break day</SelectItem>
                         {DAY_NAMES.map((day, idx) => (
                           <SelectItem key={idx} value={String(idx)}>{day}</SelectItem>
                         ))}
