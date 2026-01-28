@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Worker, Attendance } from '@/lib/types';
+import { Worker, Attendance, DAY_NAMES } from '@/lib/types';
 import { supabase } from '@/integrations/supabase/client';
 import { formatTime, calculateHours, getWeekDates, formatDate, formatToYYYYMMDD } from '@/lib/timezone';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,8 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { SecureAvatar } from '@/components/ui/SecureAvatar';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Download, Edit2, Power, FileText, ExternalLink } from 'lucide-react';
-import QRCode from 'qrcode';
+import { Loader2, Edit2, Power, FileText, ExternalLink, Clock, Coffee } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -88,14 +87,6 @@ export function WorkerModal({ worker, open, onClose, onUpdate }: WorkerModalProp
     }
   };
 
-  const downloadQR = async () => {
-    if (!worker) return;
-    const url = await QRCode.toDataURL(`cmac:${worker.qr_secret}`, { width: 300 });
-    const link = document.createElement('a');
-    link.download = `${worker.name.replace(/\s+/g, '_')}_QR.png`;
-    link.href = url;
-    link.click();
-  };
 
   // Check if a date is this worker's break day
   const isBreakDay = (date: Date): boolean => {
@@ -168,8 +159,25 @@ export function WorkerModal({ worker, open, onClose, onUpdate }: WorkerModalProp
             </div>
           ) : (
             <>
-              <div className="text-sm text-muted-foreground">Salary: {worker.salary || '—'}</div>
-              <h4 className="font-semibold">This Week</h4>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Salary</p>
+                  <p className="font-medium">{worker.salary || '—'}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground flex items-center gap-1"><Coffee className="w-3 h-3" />Break Day</p>
+                  <p className="font-medium">{worker.break_day !== null && worker.break_day !== undefined ? DAY_NAMES[worker.break_day] : 'None'}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" />Start Time</p>
+                  <p className="font-medium">{worker.custom_start_time || '—'}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" />End Time</p>
+                  <p className="font-medium">{worker.custom_end_time || '—'}</p>
+                </div>
+              </div>
+              <h4 className="font-semibold pt-2">This Week</h4>
               {loading ? (
                 <Loader2 className="w-6 h-6 animate-spin mx-auto" />
               ) : (
@@ -190,7 +198,6 @@ export function WorkerModal({ worker, open, onClose, onUpdate }: WorkerModalProp
             <div className="flex flex-wrap gap-2 pt-2">
               <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Edit2 className="w-4 h-4 mr-1" />Edit</Button>
               <Button variant="outline" size="sm" onClick={handleToggleActive}><Power className="w-4 h-4 mr-1" />{worker.is_active ? 'Deactivate' : 'Activate'}</Button>
-              <Button variant="outline" size="sm" onClick={downloadQR}><Download className="w-4 h-4 mr-1" />QR Code</Button>
               <Button variant="outline" size="sm" onClick={exportPDF}><FileText className="w-4 h-4 mr-1" />Export PDF</Button>
               <Button variant="outline" size="sm" asChild>
                 <Link to={`/workers/${worker.id}`}><ExternalLink className="w-4 h-4 mr-1" />Full Profile</Link>
