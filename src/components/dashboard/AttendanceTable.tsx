@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Card } from '@/components/ui/card';
 import { SecureAvatar } from '@/components/ui/SecureAvatar';
-import { Eye, Download, Loader2, AlertTriangle, Coffee } from 'lucide-react';
+import { Download, Loader2, AlertTriangle, Coffee } from 'lucide-react';
 import QRCode from 'qrcode';
 
 interface AttendanceTableProps {
@@ -110,7 +110,10 @@ export function AttendanceTable({ attendance, workers, incidents, loading, selec
               return (
                 <TableRow key={worker.id} className={incident ? 'bg-status-late/5' : ''}>
                   <TableCell>
-                    <div className="flex items-center gap-3">
+                    <div 
+                      className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => onWorkerClick(worker)}
+                    >
                       <SecureAvatar
                         avatarUrl={worker.avatar_url}
                         fallbackText={worker.name}
@@ -150,14 +153,9 @@ export function AttendanceTable({ attendance, workers, incidents, loading, selec
                   </TableCell>
                   <TableCell>{calculateHours(att?.check_in || null, att?.check_out || null)}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => onWorkerClick(worker)}>
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => downloadQR(worker)}>
-                        <Download className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => downloadQR(worker)}>
+                      <Download className="w-4 h-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               );
