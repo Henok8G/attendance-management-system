@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { DailySummary } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Users, LogIn, LogOut, UserX, Clock, AlertTriangle } from 'lucide-react';
+import { Users, LogIn, LogOut, UserX, Clock, Coffee } from 'lucide-react';
 
 interface SummaryCardsProps {
   summary: DailySummary;
@@ -14,7 +14,7 @@ const cards = [
   { key: 'checkedOut', label: 'Checked Out', icon: LogOut, color: 'text-muted-foreground' },
   { key: 'absent', label: 'Absent', icon: UserX, color: 'text-status-absent' },
   { key: 'late', label: 'Late', icon: Clock, color: 'text-status-late' },
-  { key: 'incidents', label: 'Incidents', icon: AlertTriangle, color: 'text-status-late' },
+  { key: 'onBreak', label: 'On Break', icon: Coffee, color: 'text-blue-400' },
 ];
 
 export function SummaryCards({ summary, loading }: SummaryCardsProps) {

@@ -113,13 +113,18 @@ export default function Dashboard() {
     };
   }, [settings?.realtime_enabled, fetchData]);
 
+  // Calculate how many workers are on break today
+  const selectedDateObj = new Date(selectedDate + 'T12:00:00');
+  const dayOfWeek = selectedDateObj.getDay();
+  const workersOnBreak = workers.filter(w => w.break_day === dayOfWeek).length;
+  
   const summary: DailySummary = {
     totalWorkers: workers.length,
     checkedIn: attendance.filter((a) => a.check_in && !a.check_out).length,
     checkedOut: attendance.filter((a) => a.check_out).length,
-    absent: workers.length - attendance.length,
+    absent: workers.length - attendance.length - workersOnBreak,
     late: attendance.filter((a) => a.is_late).length,
-    incidents: incidents.length,
+    onBreak: workersOnBreak,
   };
 
   // Filter workers first for search

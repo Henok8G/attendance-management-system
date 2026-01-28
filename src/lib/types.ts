@@ -128,5 +128,5 @@ export interface DailySummary {
   checkedOut: number;
   absent: number;
   late: number;
-  incidents: number;
+  onBreak: number;
 }
