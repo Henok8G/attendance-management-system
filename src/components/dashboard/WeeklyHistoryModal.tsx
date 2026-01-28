@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { Worker, Attendance } from '@/lib/types';
+import { Worker, Attendance, DAY_NAMES } from '@/lib/types';
 import { formatTime, calculateHours, formatDate, formatToYYYYMMDD } from '@/lib/timezone';
+import { Badge } from '@/components/ui/badge';
 import { Loader2, Download, Calendar } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -112,6 +113,11 @@ export function WeeklyHistoryModal({ open, onClose, workers }: WeeklyHistoryModa
     const dateStr = formatToYYYYMMDD(date);
     return attendanceData[workerId]?.find(a => a.date === dateStr);
   };
+
+  const isWorkerOnBreak = (worker: Worker, date: Date): boolean => {
+    if (worker.break_day === null || worker.break_day === undefined) return false;
+    return date.getDay() === worker.break_day;
+  };
   
   const calculateTotalHours = (workerId: string): string => {
     const records = attendanceData[workerId] || [];
@@ -147,10 +153,13 @@ export function WeeklyHistoryModal({ open, onClose, workers }: WeeklyHistoryModa
       const row = [worker.name];
       weekDays.forEach(day => {
         const att = getAttendanceForDay(worker.id, day);
+        const onBreak = isWorkerOnBreak(worker, day);
         if (att) {
           const checkIn = formatTime(att.check_in) || '-';
           const checkOut = formatTime(att.check_out) || '-';
           row.push(`${checkIn}\n${checkOut}`);
+        } else if (onBreak) {
+          row.push('Break');
         } else {
           row.push('Absent');
         }
@@ -230,6 +239,7 @@ export function WeeklyHistoryModal({ open, onClose, workers }: WeeklyHistoryModa
                     </TableCell>
                     {weekDays.map((day, i) => {
                       const att = getAttendanceForDay(worker.id, day);
+                      const onBreak = isWorkerOnBreak(worker, day);
                       return (
                         <TableCell key={i} className="text-center">
                           {att ? (
@@ -238,6 +248,8 @@ export function WeeklyHistoryModal({ open, onClose, workers }: WeeklyHistoryModa
                               <div className="text-status-out">{formatTime(att.check_out) || '-'}</div>
                               {att.is_late && <span className="text-status-late text-[10px]">LATE</span>}
                             </div>
+                          ) : onBreak ? (
+                            <Badge variant="secondary" className="bg-secondary text-secondary-foreground text-[10px]">Break</Badge>
                           ) : (
                             <span className="text-muted-foreground text-xs">Absent</span>
                           )}
