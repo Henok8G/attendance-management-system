@@ -1,11 +1,11 @@
-import { AttendanceWithWorker, Incident, Worker, DAY_NAMES } from '@/lib/types';
-import { formatTime, calculateHours } from '@/lib/timezone';
+import { AttendanceWithWorker, Incident, Worker, DAY_NAMES, Settings } from '@/lib/types';
+import { formatTime, calculateHours, calculateLateMinutes, formatLateTime } from '@/lib/timezone';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Card } from '@/components/ui/card';
 import { SecureAvatar } from '@/components/ui/SecureAvatar';
-import { Download, Loader2, AlertTriangle, Coffee } from 'lucide-react';
+import { Download, Loader2, AlertTriangle, Coffee, Clock } from 'lucide-react';
 import QRCode from 'qrcode';
 
 interface AttendanceTableProps {
@@ -16,6 +16,7 @@ interface AttendanceTableProps {
   selectedDate: string;
   onWorkerClick: (worker: Worker) => void;
   onRefresh: () => void;
+  settings?: Settings | null;
 }
 
 const statusClasses: Record<string, string> = {
@@ -26,7 +27,7 @@ const statusClasses: Record<string, string> = {
   break: 'status-badge bg-blue-500/20 text-blue-400 border-blue-500/30',
 };
 
-export function AttendanceTable({ attendance, workers, incidents, loading, selectedDate, onWorkerClick }: AttendanceTableProps) {
+export function AttendanceTable({ attendance, workers, incidents, loading, selectedDate, onWorkerClick, settings }: AttendanceTableProps) {
   const downloadQR = async (worker: Worker) => {
     // Generate QR code with scan URL
     const scanUrl = `${window.location.origin}/scan?secret=${encodeURIComponent(worker.qr_secret)}`;
@@ -58,12 +59,22 @@ export function AttendanceTable({ attendance, workers, incidents, loading, selec
   const allWorkerRows = workers.map((worker) => {
     const att = attendanceMap.get(worker.id);
     const onBreak = isWorkerOnBreak(worker, selectedDate);
+    
+    // Calculate late minutes
+    const lateMinutes = att?.is_late && settings ? calculateLateMinutes(
+      att.check_in,
+      settings.default_start_time,
+      settings.late_threshold_minutes,
+      worker.custom_start_time
+    ) : 0;
+    
     return {
       worker,
       attendance: att,
       status: onBreak ? 'break' : (att?.status || 'absent'),
       isLate: att?.is_late || false,
       onBreak,
+      lateMinutes,
     };
   });
 
@@ -99,11 +110,12 @@ export function AttendanceTable({ attendance, workers, incidents, loading, selec
               <TableHead>Check Out</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Hours</TableHead>
+              <TableHead>Late By</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {allWorkerRows.map(({ worker, attendance: att, status, isLate, onBreak }) => {
+            {allWorkerRows.map(({ worker, attendance: att, status, isLate, onBreak, lateMinutes }) => {
               const incident = getWorkerIncident(worker.id);
               const displayStatus = onBreak ? 'break' : (isLate ? 'late' : status);
 
@@ -152,6 +164,16 @@ export function AttendanceTable({ attendance, workers, incidents, loading, selec
                     </span>
                   </TableCell>
                   <TableCell>{calculateHours(att?.check_in || null, att?.check_out || null)}</TableCell>
+                  <TableCell>
+                    {lateMinutes > 0 ? (
+                      <span className="flex items-center gap-1 text-status-late text-sm">
+                        <Clock className="w-3 h-3" />
+                        {formatLateTime(lateMinutes)}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" onClick={() => downloadQR(worker)}>
                       <Download className="w-4 h-4" />
