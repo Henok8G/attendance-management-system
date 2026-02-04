@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,35 +9,77 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Scissors, Loader2 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 
 export default function AuthPage() {
   const navigate = useNavigate();
   const { signIn, signUp, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [signupForm, setSignupForm] = useState({ email: '', password: '', fullName: '' });
 
+  // Animate progress bar while loading
+  useEffect(() => {
+    if (authLoading) {
+      const timer = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 90) return prev;
+          return prev + 10;
+        });
+      }, 150);
+      return () => clearInterval(timer);
+    } else {
+      setProgress(100);
+    }
+  }, [authLoading]);
+
   // Redirect if already logged in (only after auth state is resolved)
-  if (!authLoading && user) {
-    navigate('/dashboard');
-    return null;
-  }
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [authLoading, user, navigate]);
 
   // Show loading while auth state is being determined
   if (authLoading) {
     return (
       <div 
         className="min-h-screen flex items-center justify-center bg-background"
-        style={{ backgroundColor: '#fafafa' }}
+        style={{ backgroundColor: 'hsl(var(--background))' }}
       >
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-brand-gold" />
-          <p className="text-muted-foreground text-sm">Loading...</p>
-        </div>
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center gap-6 p-8"
+        >
+          <motion.div
+            initial={{ scale: 0.8 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="inline-flex items-center justify-center w-16 h-16 rounded-2xl gradient-gold shadow-glow"
+          >
+            <Scissors className="w-8 h-8 text-brand-black" />
+          </motion.div>
+          
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-brand-gold" />
+            <p className="text-muted-foreground text-sm font-medium">Loading your session...</p>
+          </div>
+          
+          <div className="w-48">
+            <Progress value={progress} className="h-1.5" />
+          </div>
+        </motion.div>
       </div>
     );
+  }
+
+  // If user exists after loading, don't render anything (redirect will happen)
+  if (user) {
+    return null;
   }
 
   const handleLogin = async (e: React.FormEvent) => {
