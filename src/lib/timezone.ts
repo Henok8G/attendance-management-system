@@ -149,6 +149,53 @@ export function isLate(
 }
 
 /**
+ * Calculate how many minutes late a worker checked in
+ * Returns 0 if not late or no check-in
+ */
+export function calculateLateMinutes(
+  checkInTime: string | null,
+  defaultStartTime: string,
+  lateThresholdMinutes: number,
+  customStartTime?: string | null
+): number {
+  if (!checkInTime) return 0;
+  
+  const startTime = customStartTime || defaultStartTime;
+  const startMinutes = parseTimeToMinutes(startTime);
+  const lateThreshold = startMinutes + lateThresholdMinutes;
+  
+  // Convert check-in to Africa/Addis_Ababa time
+  const checkIn = toLocalTime(checkInTime);
+  const checkInMinutes = checkIn.getHours() * 60 + checkIn.getMinutes();
+  
+  if (checkInMinutes > lateThreshold) {
+    return checkInMinutes - lateThreshold;
+  }
+  
+  return 0;
+}
+
+/**
+ * Format late minutes to a readable string (e.g., "15m" or "1h 30m")
+ */
+export function formatLateTime(minutes: number): string {
+  if (minutes <= 0) return '—';
+  
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  
+  if (remainingMinutes === 0) {
+    return `${hours}h`;
+  }
+  
+  return `${hours}h ${remainingMinutes}m`;
+}
+
+/**
  * Calculate age from birthdate
  */
 export function calculateAge(birthdate: string | Date | null): number | null {

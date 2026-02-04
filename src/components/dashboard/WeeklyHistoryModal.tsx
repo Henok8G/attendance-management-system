@@ -4,10 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { Worker, Attendance, DAY_NAMES } from '@/lib/types';
-import { formatTime, calculateHours, formatDate, formatToYYYYMMDD } from '@/lib/timezone';
+import { Worker, Attendance, DAY_NAMES, Settings } from '@/lib/types';
+import { formatTime, calculateHours, formatDate, formatToYYYYMMDD, calculateLateMinutes, formatLateTime, parseTimeToMinutes } from '@/lib/timezone';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Download, Calendar } from 'lucide-react';
+import { Loader2, Download, Calendar, Clock } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -15,6 +15,7 @@ interface WeeklyHistoryModalProps {
   open: boolean;
   onClose: () => void;
   workers: Worker[];
+  settings?: Settings | null;
 }
 
 interface WeekOption {
@@ -57,7 +58,7 @@ function getWeekOptions(weeksBack: number = 8): WeekOption[] {
   return options;
 }
 
-export function WeeklyHistoryModal({ open, onClose, workers }: WeeklyHistoryModalProps) {
+export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyHistoryModalProps) {
   const [selectedWeek, setSelectedWeek] = useState<string>('0');
   const [attendanceData, setAttendanceData] = useState<Record<string, Attendance[]>>({});
   const [loading, setLoading] = useState(false);
@@ -135,6 +136,26 @@ export function WeeklyHistoryModal({ open, onClose, workers }: WeeklyHistoryModa
     const minutes = Math.round(totalMinutes % 60);
     return `${hours}h ${minutes}m`;
   };
+
+  const calculateTotalLateMinutes = (worker: Worker): number => {
+    const records = attendanceData[worker.id] || [];
+    let totalLate = 0;
+    
+    if (!settings) return 0;
+    
+    records.forEach(att => {
+      if (att.is_late && att.check_in) {
+        totalLate += calculateLateMinutes(
+          att.check_in,
+          settings.default_start_time,
+          settings.late_threshold_minutes,
+          worker.custom_start_time
+        );
+      }
+    });
+    
+    return totalLate;
+  };
   
   const exportToPDF = () => {
     if (!currentWeek) return;
@@ -147,7 +168,7 @@ export function WeeklyHistoryModal({ open, onClose, workers }: WeeklyHistoryModa
     doc.setFontSize(11);
     doc.text(`${currentWeek.startDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} - ${currentWeek.endDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, 14, 22);
     
-    const headers = ['Worker', ...weekDays.map(d => d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })), 'Total Hours'];
+    const headers = ['Worker', ...weekDays.map(d => d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })), 'Total Hours', 'Total Late'];
     
     const body = workers.map(worker => {
       const row = [worker.name];
@@ -165,6 +186,11 @@ export function WeeklyHistoryModal({ open, onClose, workers }: WeeklyHistoryModa
         }
       });
       row.push(calculateTotalHours(worker.id));
+      
+      // Add total late time
+      const totalLate = calculateTotalLateMinutes(worker);
+      row.push(totalLate > 0 ? formatLateTime(totalLate) : '-');
+      
       return row;
     });
     
@@ -229,38 +255,52 @@ export function WeeklyHistoryModal({ open, onClose, workers }: WeeklyHistoryModa
                     </TableHead>
                   ))}
                   <TableHead className="text-center">Total</TableHead>
+                  <TableHead className="text-center">Late</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {workers.map(worker => (
-                  <TableRow key={worker.id}>
-                    <TableCell className="sticky left-0 bg-background z-10 font-medium">
-                      {worker.name}
-                    </TableCell>
-                    {weekDays.map((day, i) => {
-                      const att = getAttendanceForDay(worker.id, day);
-                      const onBreak = isWorkerOnBreak(worker, day);
-                      return (
-                        <TableCell key={i} className="text-center">
-                          {att ? (
-                            <div className="text-xs space-y-1">
-                              <div className="text-status-in">{formatTime(att.check_in) || '-'}</div>
-                              <div className="text-status-out">{formatTime(att.check_out) || '-'}</div>
-                              {att.is_late && <span className="text-status-late text-[10px]">LATE</span>}
-                            </div>
-                          ) : onBreak ? (
-                            <Badge variant="secondary" className="bg-secondary text-secondary-foreground text-[10px]">Break</Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">Absent</span>
-                          )}
-                        </TableCell>
-                      );
-                    })}
-                    <TableCell className="text-center font-medium">
-                      {calculateTotalHours(worker.id)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {workers.map(worker => {
+                  const totalLate = calculateTotalLateMinutes(worker);
+                  return (
+                    <TableRow key={worker.id}>
+                      <TableCell className="sticky left-0 bg-background z-10 font-medium">
+                        {worker.name}
+                      </TableCell>
+                      {weekDays.map((day, i) => {
+                        const att = getAttendanceForDay(worker.id, day);
+                        const onBreak = isWorkerOnBreak(worker, day);
+                        return (
+                          <TableCell key={i} className="text-center">
+                            {att ? (
+                              <div className="text-xs space-y-1">
+                                <div className="text-status-in">{formatTime(att.check_in) || '-'}</div>
+                                <div className="text-status-out">{formatTime(att.check_out) || '-'}</div>
+                                {att.is_late && <span className="text-status-late text-[10px]">LATE</span>}
+                              </div>
+                            ) : onBreak ? (
+                              <Badge variant="secondary" className="bg-secondary text-secondary-foreground text-[10px]">Break</Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">Absent</span>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                      <TableCell className="text-center font-medium">
+                        {calculateTotalHours(worker.id)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {totalLate > 0 ? (
+                          <span className="flex items-center justify-center gap-1 text-status-late text-sm">
+                            <Clock className="w-3 h-3" />
+                            {formatLateTime(totalLate)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

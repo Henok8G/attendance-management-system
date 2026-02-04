@@ -193,6 +193,7 @@ export default function Dashboard() {
             selectedDate={selectedDate}
             onWorkerClick={setSelectedWorker}
             onRefresh={fetchData}
+            settings={settings}
           />
         </motion.div>
       </main>
@@ -208,6 +209,7 @@ export default function Dashboard() {
         open={showWeeklyHistory}
         onClose={() => setShowWeeklyHistory(false)}
         workers={workers}
+        settings={settings}
       />
     </div>
   );
