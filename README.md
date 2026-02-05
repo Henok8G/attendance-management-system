@@ -117,33 +117,7 @@ supabase/
 ## Prerequisites
 
 - Node.js (v18+ recommended)
-
-- npm or pnpm
-
 - A Supabase project (URL + anon key)
-
-## Setup
-
-Clone the repository:
-
-git clone <your-repository-url>
-cd <project-name>
-
-
-Install dependencies:
-
-npm install
-
-
-Create a .env file:
-
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_anon_key
-
-
-Run the development server:
-
-npm run dev
 
 # Supabase Configuration
 
@@ -194,8 +168,6 @@ The frontend can be deployed on platforms like Vercel
 Supabase remains the single backend
 
 The project can be fully managed via GitHub
-
-Lovable can be disconnected without breaking functionality
 
 ## Intended Use Cases
 
