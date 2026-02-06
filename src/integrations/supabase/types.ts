@@ -238,6 +238,42 @@ export type Database = {
           },
         ]
       }
+      permission_requests: {
+        Row: {
+          created_at: string
+          id: string
+          reason: string | null
+          request_date: string
+          request_time: string | null
+          staff_id: string
+          staff_name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          reason?: string | null
+          request_date: string
+          request_time?: string | null
+          staff_id: string
+          staff_name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reason?: string | null
+          request_date?: string
+          request_time?: string | null
+          staff_id?: string
+          staff_name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       qr_email_delivery: {
         Row: {
           created_at: string
