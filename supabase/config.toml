@@ -20,3 +20,9 @@ verify_jwt = false
 
 [functions.get-attendance-history]
 verify_jwt = false
+
+[functions.get-workers]
+verify_jwt = false
+
+[functions.submit-permission-request]
+verify_jwt = false
