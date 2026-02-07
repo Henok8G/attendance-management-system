@@ -16,9 +16,8 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const { data: workers, error } = await supabase
-      .from('staff_profiles')
+      .from('workers')
       .select('id, name')
-      .eq('approved', true)
       .order('name')
 
     if (error) throw error
