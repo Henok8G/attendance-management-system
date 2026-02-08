@@ -1,11 +1,13 @@
+import { useEffect, useState } from 'react';
 import { AttendanceWithWorker, Incident, Worker, DAY_NAMES, Settings } from '@/lib/types';
-import { formatTime, calculateHours, calculateLateMinutes, formatLateTime } from '@/lib/timezone';
+import { formatTime, calculateHours, calculateLateMinutes, formatLateTime, formatToYYYYMMDD } from '@/lib/timezone';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Card } from '@/components/ui/card';
 import { SecureAvatar } from '@/components/ui/SecureAvatar';
-import { Download, Loader2, AlertTriangle, Coffee, Clock } from 'lucide-react';
+import { Download, Loader2, AlertTriangle, Coffee, Clock, ShieldCheck } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import QRCode from 'qrcode';
 
 interface AttendanceTableProps {
@@ -25,9 +27,35 @@ const statusClasses: Record<string, string> = {
   late: 'status-badge status-late',
   absent: 'status-badge status-absent',
   break: 'status-badge bg-blue-500/20 text-blue-400 border-blue-500/30',
+  permission: 'status-badge status-permission',
 };
 
+interface PermissionRequest {
+  id: string;
+  staff_id: string;
+  request_date: string;
+  status: string;
+}
+
 export function AttendanceTable({ attendance, workers, incidents, loading, selectedDate, onWorkerClick, settings }: AttendanceTableProps) {
+  const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>([]);
+
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      const { data } = await supabase
+        .from('permission_requests')
+        .select('id, staff_id, request_date, status')
+        .eq('request_date', selectedDate)
+        .eq('status', 'approved');
+      setPermissionRequests((data as PermissionRequest[]) || []);
+    };
+    fetchPermissions();
+  }, [selectedDate]);
+
+  const hasPermission = (workerId: string): boolean => {
+    return permissionRequests.some(p => p.staff_id === workerId);
+  };
+
   const downloadQR = async (worker: Worker) => {
     // Generate QR code with scan URL
     const scanUrl = `${window.location.origin}/scan?secret=${encodeURIComponent(worker.qr_secret)}`;
@@ -68,19 +96,22 @@ export function AttendanceTable({ attendance, workers, incidents, loading, selec
       worker.custom_start_time
     ) : 0;
     
+    const onPermission = hasPermission(worker.id);
+    
     return {
       worker,
       attendance: att,
-      status: onBreak ? 'break' : (att?.status || 'absent'),
+      status: onBreak ? 'break' : onPermission ? 'permission' : (att?.status || 'absent'),
       isLate: att?.is_late || false,
       onBreak,
+      onPermission,
       lateMinutes,
     };
   });
 
   // Sort by status
-  const statusOrder: Record<string, number> = { in: 0, late: 1, out: 2, break: 3, absent: 4 };
-  allWorkerRows.sort((a, b) => (statusOrder[a.status] ?? 5) - (statusOrder[b.status] ?? 5));
+  const statusOrder: Record<string, number> = { in: 0, late: 1, out: 2, break: 3, permission: 4, absent: 5 };
+  allWorkerRows.sort((a, b) => (statusOrder[a.status] ?? 6) - (statusOrder[b.status] ?? 6));
 
   if (loading) {
     return (
@@ -115,9 +146,9 @@ export function AttendanceTable({ attendance, workers, incidents, loading, selec
             </TableRow>
           </TableHeader>
           <TableBody>
-            {allWorkerRows.map(({ worker, attendance: att, status, isLate, onBreak, lateMinutes }) => {
+            {allWorkerRows.map(({ worker, attendance: att, status, isLate, onBreak, onPermission, lateMinutes }) => {
               const incident = getWorkerIncident(worker.id);
-              const displayStatus = onBreak ? 'break' : (isLate ? 'late' : status);
+              const displayStatus = onBreak ? 'break' : onPermission ? 'permission' : (isLate ? 'late' : status);
 
               return (
                 <TableRow key={worker.id} className={incident ? 'bg-status-late/5' : ''}>
@@ -139,6 +170,12 @@ export function AttendanceTable({ attendance, workers, incidents, loading, selec
                           <span className="text-xs text-blue-400 flex items-center gap-1">
                             <Coffee className="w-3 h-3" />
                             {DAY_NAMES[worker.break_day]} Break
+                          </span>
+                        )}
+                        {onPermission && !onBreak && (
+                          <span className="text-xs text-status-permission flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3" />
+                            Permission
                           </span>
                         )}
                         {incident && !onBreak && (

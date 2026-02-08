@@ -11,6 +11,13 @@ import { Loader2, Download, Calendar, Clock } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+interface PermissionRequest {
+  id: string;
+  staff_id: string;
+  request_date: string;
+  status: string;
+}
+
 interface WeeklyHistoryModalProps {
   open: boolean;
   onClose: () => void;
@@ -62,6 +69,7 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
   const [selectedWeek, setSelectedWeek] = useState<string>('0');
   const [attendanceData, setAttendanceData] = useState<Record<string, Attendance[]>>({});
   const [loading, setLoading] = useState(false);
+  const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>([]);
   
   const weekOptions = getWeekOptions(8);
   const currentWeek = weekOptions[parseInt(selectedWeek)];
@@ -69,6 +77,7 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
   useEffect(() => {
     if (open && currentWeek) {
       fetchWeeklyAttendance();
+      fetchPermissions();
     }
   }, [open, selectedWeek]);
   
@@ -98,7 +107,26 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
     setAttendanceData(grouped);
     setLoading(false);
   };
-  
+
+  const fetchPermissions = async () => {
+    if (!currentWeek) return;
+    const startDateStr = formatToYYYYMMDD(currentWeek.startDate);
+    const endDateStr = formatToYYYYMMDD(currentWeek.endDate);
+    
+    const { data } = await supabase
+      .from('permission_requests')
+      .select('id, staff_id, request_date, status')
+      .gte('request_date', startDateStr)
+      .lte('request_date', endDateStr)
+      .eq('status', 'approved');
+    setPermissionRequests((data as PermissionRequest[]) || []);
+  };
+
+  const hasPermission = (workerId: string, date: Date): boolean => {
+    const dateStr = formatToYYYYMMDD(date);
+    return permissionRequests.some(p => p.staff_id === workerId && p.request_date === dateStr);
+  };
+
   const getWeekDays = (): Date[] => {
     if (!currentWeek) return [];
     const days: Date[] = [];
@@ -175,7 +203,10 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
       weekDays.forEach(day => {
         const att = getAttendanceForDay(worker.id, day);
         const onBreak = isWorkerOnBreak(worker, day);
-        if (att) {
+        const onPermission = hasPermission(worker.id, day);
+        if (onPermission) {
+          row.push('Permission');
+        } else if (att) {
           const checkIn = formatTime(att.check_in) || '-';
           const checkOut = formatTime(att.check_out) || '-';
           row.push(`${checkIn}\n${checkOut}`);
@@ -201,6 +232,21 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: { fillColor: [212, 175, 55] },
       columnStyles: { 0: { fontStyle: 'bold' } },
+      didParseCell: (data: any) => {
+        if (data.section === 'body' && data.column.index > 0) {
+          const cellText = String(data.cell.raw || '');
+          if (cellText === 'Absent') {
+            data.cell.styles.textColor = [220, 38, 38]; // red
+            data.cell.styles.fontStyle = 'bold';
+          } else if (cellText === 'Permission') {
+            data.cell.styles.textColor = [37, 99, 235]; // blue
+            data.cell.styles.fontStyle = 'bold';
+          } else if (cellText === 'Break') {
+            data.cell.styles.textColor = [59, 130, 246]; // lighter blue
+            data.cell.styles.fontStyle = 'italic';
+          }
+        }
+      },
     });
     
     doc.save(`Weekly_Attendance_${formatToYYYYMMDD(currentWeek.startDate)}.pdf`);
@@ -269,9 +315,12 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
                       {weekDays.map((day, i) => {
                         const att = getAttendanceForDay(worker.id, day);
                         const onBreak = isWorkerOnBreak(worker, day);
+                        const onPermission = hasPermission(worker.id, day);
                         return (
                           <TableCell key={i} className="text-center">
-                            {att ? (
+                            {onPermission ? (
+                              <Badge variant="secondary" className="bg-[hsl(var(--status-permission)/0.15)] text-status-permission text-[10px]">Permission</Badge>
+                            ) : att ? (
                               <div className="text-xs space-y-1">
                                 <div className="text-status-in">{formatTime(att.check_in) || '-'}</div>
                                 <div className="text-status-out">{formatTime(att.check_out) || '-'}</div>
@@ -280,7 +329,7 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
                             ) : onBreak ? (
                               <Badge variant="secondary" className="bg-secondary text-secondary-foreground text-[10px]">Break</Badge>
                             ) : (
-                              <span className="text-muted-foreground text-xs">Absent</span>
+                              <span className="text-status-absent text-xs font-medium">Absent</span>
                             )}
                           </TableCell>
                         );

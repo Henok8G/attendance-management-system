@@ -129,4 +129,5 @@ export interface DailySummary {
   absent: number;
   late: number;
   onBreak: number;
+  onPermission: number;
 }

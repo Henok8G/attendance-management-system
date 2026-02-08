@@ -45,6 +45,7 @@
     --status-out: 0 0% 50%;
     --status-late: 25 95% 53%;
     --status-absent: 0 84% 60%;
+    --status-permission: 210 70% 50%;
 
     /* Brand specific */
     --brand-black: 0 0% 6%;
@@ -137,6 +138,10 @@
 
   .status-absent {
     @apply bg-[hsl(var(--status-absent)/0.15)] text-[hsl(var(--status-absent))];
+  }
+
+  .status-permission {
+    @apply bg-[hsl(var(--status-permission)/0.15)] text-[hsl(var(--status-permission))];
   }
 
   .glass-card {
