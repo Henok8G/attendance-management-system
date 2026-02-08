@@ -22,6 +22,7 @@ export default function Dashboard() {
   const [attendance, setAttendance] = useState<AttendanceWithWorker[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [permissionWorkerIds, setPermissionWorkerIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(getToday());
   const [searchQuery, setSearchQuery] = useState('');
@@ -56,9 +57,17 @@ export default function Dashboard() {
       .gte('occurred_at', `${today}T00:00:00`)
       .order('occurred_at', { ascending: false });
 
+    // Fetch permission requests for selected date
+    const { data: permData } = await supabase
+      .from('permission_requests')
+      .select('staff_id')
+      .eq('request_date', selectedDate)
+      .eq('status', 'approved');
+
     if (workersData) setWorkers(workersData as Worker[]);
     if (attendanceData) setAttendance(attendanceData as AttendanceWithWorker[]);
     if (incidentsData) setIncidents(incidentsData as Incident[]);
+    setPermissionWorkerIds((permData || []).map((p: any) => p.staff_id));
 
     setLoading(false);
   }, [user, selectedDate]);
@@ -118,13 +127,16 @@ export default function Dashboard() {
   const dayOfWeek = selectedDateObj.getDay();
   const workersOnBreak = workers.filter(w => w.break_day === dayOfWeek).length;
   
+  const workersOnPermission = permissionWorkerIds.filter(id => workers.some(w => w.id === id)).length;
+
   const summary: DailySummary = {
     totalWorkers: workers.length,
     checkedIn: attendance.filter((a) => a.check_in && !a.check_out).length,
     checkedOut: attendance.filter((a) => a.check_out).length,
-    absent: workers.length - attendance.length - workersOnBreak,
+    absent: workers.length - attendance.length - workersOnBreak - workersOnPermission,
     late: attendance.filter((a) => a.is_late).length,
     onBreak: workersOnBreak,
+    onPermission: workersOnPermission,
   };
 
   // Filter workers first for search

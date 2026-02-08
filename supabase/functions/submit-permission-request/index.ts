@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
         request_date,
         request_time: request_time || null,
         reason: reason || null,
-        status: 'pending',
+        status: 'approved',
       })
       .select()
       .single()

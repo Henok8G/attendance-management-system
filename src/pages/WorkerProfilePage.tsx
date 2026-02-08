@@ -39,6 +39,7 @@ export default function WorkerProfilePage() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [notes, setNotes] = useState<WorkerNote[]>([]);
   const [todayQRCodes, setTodayQRCodes] = useState<DailyQRCode[]>([]);
+  const [permissionDates, setPermissionDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [newNote, setNewNote] = useState('');
@@ -148,6 +149,19 @@ export default function WorkerProfilePage() {
       .eq('date', today);
 
     setTodayQRCodes((qrData as DailyQRCode[]) || []);
+
+    // Fetch permission requests for this week
+    const permWeekDates = getWeekDates(new Date());
+    const permStartDate = formatToYYYYMMDD(permWeekDates[0]);
+    const permEndDate = formatToYYYYMMDD(permWeekDates[6]);
+    const { data: permData } = await supabase
+      .from('permission_requests')
+      .select('request_date')
+      .eq('staff_id', id)
+      .eq('status', 'approved')
+      .gte('request_date', permStartDate)
+      .lte('request_date', permEndDate);
+    setPermissionDates((permData || []).map((p: any) => p.request_date));
 
     setLoading(false);
   };
@@ -271,6 +285,10 @@ export default function WorkerProfilePage() {
     return date.getDay() === worker.break_day;
   };
 
+  const hasPermissionOnDate = (dateStr: string): boolean => {
+    return permissionDates.includes(dateStr);
+  };
+
   const exportPDF = () => {
     if (!worker) return;
     const doc = new jsPDF();
@@ -283,14 +301,27 @@ export default function WorkerProfilePage() {
         const dateStr = formatToYYYYMMDD(d);
         const att = weeklyAttendance.find((a) => a.date === dateStr);
         const onBreak = isBreakDay(d);
+        const onPermission = hasPermissionOnDate(dateStr);
         return [
           formatDate(d), 
-          onBreak ? '-' : formatTime(att?.check_in), 
-          onBreak ? '-' : formatTime(att?.check_out), 
-          onBreak ? '-' : calculateHours(att?.check_in || null, att?.check_out || null),
-          onBreak ? 'Break' : (att?.is_late ? 'Late' : att?.check_in ? 'Present' : 'Absent')
+          onPermission ? '-' : onBreak ? '-' : formatTime(att?.check_in), 
+          onPermission ? '-' : onBreak ? '-' : formatTime(att?.check_out), 
+          onPermission ? '-' : onBreak ? '-' : calculateHours(att?.check_in || null, att?.check_out || null),
+          onPermission ? 'Permission' : onBreak ? 'Break' : (att?.is_late ? 'Late' : att?.check_in ? 'Present' : 'Absent')
         ];
       }),
+      didParseCell: (data: any) => {
+        if (data.section === 'body' && data.column.index === 4) {
+          const cellText = String(data.cell.raw || '');
+          if (cellText === 'Absent') {
+            data.cell.styles.textColor = [220, 38, 38];
+            data.cell.styles.fontStyle = 'bold';
+          } else if (cellText === 'Permission') {
+            data.cell.styles.textColor = [37, 99, 235];
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
+      },
     });
     doc.save(`${worker.name}_weekly_report.pdf`);
   };
@@ -528,16 +559,27 @@ export default function WorkerProfilePage() {
                 {weekDates.map((d) => {
                   const dateStr = formatToYYYYMMDD(d);
                   const att = weeklyAttendance.find((a) => a.date === dateStr);
+                  const onBreak = isBreakDay(d);
+                  const onPermission = hasPermissionOnDate(dateStr);
+                  
+                  const getStatusBadge = () => {
+                    if (onPermission) return <Badge className="ml-3 w-20 justify-center bg-[hsl(var(--status-permission)/0.15)] text-status-permission border-0">Permission</Badge>;
+                    if (onBreak) return <Badge variant="secondary" className="ml-3 w-20 justify-center">Break</Badge>;
+                    if (att?.is_late) return <Badge variant="destructive" className="ml-3 w-20 justify-center">Late</Badge>;
+                    if (att?.check_in) return <Badge variant="default" className="ml-3 w-20 justify-center">Present</Badge>;
+                    return <Badge className="ml-3 w-20 justify-center bg-[hsl(var(--status-absent)/0.15)] text-status-absent border-0">Absent</Badge>;
+                  };
+
                   return (
                     <div key={dateStr} className="flex items-center justify-between text-sm py-2 border-b border-border/50 last:border-0">
                       <span className="font-medium w-28">{formatDate(d)}</span>
-                      <span className="flex-1 text-center">{formatTime(att?.check_in)} — {formatTime(att?.check_out)}</span>
-                      <span className={`w-16 text-right ${att?.is_late ? 'text-status-late' : 'text-muted-foreground'}`}>
-                        {calculateHours(att?.check_in || null, att?.check_out || null)}
+                      <span className="flex-1 text-center">
+                        {onPermission || onBreak ? '— — —' : `${formatTime(att?.check_in)} — ${formatTime(att?.check_out)}`}
                       </span>
-                      <Badge variant={att?.is_late ? 'destructive' : att?.check_in ? 'default' : 'secondary'} className="ml-3 w-16 justify-center">
-                        {att?.is_late ? 'Late' : att?.check_in ? 'Present' : 'Absent'}
-                      </Badge>
+                      <span className={`w-16 text-right ${att?.is_late ? 'text-status-late' : 'text-muted-foreground'}`}>
+                        {onPermission || onBreak ? '—' : calculateHours(att?.check_in || null, att?.check_out || null)}
+                      </span>
+                      {getStatusBadge()}
                     </div>
                   );
                 })}

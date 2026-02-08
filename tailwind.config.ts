@@ -66,6 +66,7 @@ export default {
           out: "hsl(var(--status-out))",
           late: "hsl(var(--status-late))",
           absent: "hsl(var(--status-absent))",
+          permission: "hsl(var(--status-permission))",
         },
         brand: {
           black: "hsl(var(--brand-black))",
