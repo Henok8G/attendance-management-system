@@ -25,27 +25,26 @@ interface WeeklyHistoryModalProps {
   settings?: Settings | null;
 }
 
-interface WeekOption {
+interface DateRangeOption {
   label: string;
   startDate: Date;
   endDate: Date;
+  type: 'week' | 'month';
 }
 
-function getWeekOptions(weeksBack: number = 8): WeekOption[] {
-  const options: WeekOption[] = [];
+function getWeekOptions(): DateRangeOption[] {
+  const options: DateRangeOption[] = [];
   const today = new Date();
   
-  for (let i = 0; i < weeksBack; i++) {
+  for (let i = 0; i < 8; i++) {
     const endDate = new Date(today);
     endDate.setDate(today.getDate() - (i * 7));
     
-    // Get Monday of that week
     const startDate = new Date(endDate);
     const dayOfWeek = startDate.getDay();
     const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     startDate.setDate(startDate.getDate() - diffToMonday);
     
-    // Get Sunday of that week
     const weekEnd = new Date(startDate);
     weekEnd.setDate(startDate.getDate() + 6);
     
@@ -53,40 +52,62 @@ function getWeekOptions(weeksBack: number = 8): WeekOption[] {
       ? 'This Week' 
       : i === 1 
         ? 'Last Week' 
-        : `Week ${i + 1} (${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`;
+        : `Week (${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`;
     
-    options.push({
-      label,
-      startDate,
-      endDate: weekEnd,
-    });
+    options.push({ label, startDate, endDate: weekEnd, type: 'week' });
+  }
+  
+  return options;
+}
+
+function getMonthOptions(): DateRangeOption[] {
+  const options: DateRangeOption[] = [];
+  const today = new Date();
+  
+  for (let i = 0; i < 6; i++) {
+    const startDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const endDate = new Date(today.getFullYear(), today.getMonth() - i + 1, 0);
+    
+    const label = i === 0 
+      ? 'This Month' 
+      : i === 1 
+        ? 'Last Month' 
+        : startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    
+    options.push({ label, startDate, endDate, type: 'month' });
   }
   
   return options;
 }
 
 export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyHistoryModalProps) {
-  const [selectedWeek, setSelectedWeek] = useState<string>('0');
+  const [rangeMode, setRangeMode] = useState<'week' | 'month'>('week');
+  const [selectedIndex, setSelectedIndex] = useState<string>('0');
   const [attendanceData, setAttendanceData] = useState<Record<string, Attendance[]>>({});
   const [loading, setLoading] = useState(false);
   const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>([]);
   
-  const weekOptions = getWeekOptions(8);
-  const currentWeek = weekOptions[parseInt(selectedWeek)];
+  const rangeOptions = rangeMode === 'week' ? getWeekOptions() : getMonthOptions();
+  const currentRange = rangeOptions[parseInt(selectedIndex)];
+  
+  // Reset selection when mode changes
+  useEffect(() => {
+    setSelectedIndex('0');
+  }, [rangeMode]);
   
   useEffect(() => {
-    if (open && currentWeek) {
-      fetchWeeklyAttendance();
+    if (open && currentRange) {
+      fetchAttendance();
       fetchPermissions();
     }
-  }, [open, selectedWeek]);
+  }, [open, selectedIndex, rangeMode]);
   
-  const fetchWeeklyAttendance = async () => {
-    if (!currentWeek) return;
+  const fetchAttendance = async () => {
+    if (!currentRange) return;
     
     setLoading(true);
-    const startDateStr = formatToYYYYMMDD(currentWeek.startDate);
-    const endDateStr = formatToYYYYMMDD(currentWeek.endDate);
+    const startDateStr = formatToYYYYMMDD(currentRange.startDate);
+    const endDateStr = formatToYYYYMMDD(currentRange.endDate);
     
     const { data } = await supabase
       .from('attendance')
@@ -95,7 +116,6 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
       .lte('date', endDateStr)
       .order('date', { ascending: true });
     
-    // Group by worker
     const grouped: Record<string, Attendance[]> = {};
     (data || []).forEach((att: Attendance) => {
       if (!grouped[att.worker_id]) {
@@ -109,9 +129,9 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
   };
 
   const fetchPermissions = async () => {
-    if (!currentWeek) return;
-    const startDateStr = formatToYYYYMMDD(currentWeek.startDate);
-    const endDateStr = formatToYYYYMMDD(currentWeek.endDate);
+    if (!currentRange) return;
+    const startDateStr = formatToYYYYMMDD(currentRange.startDate);
+    const endDateStr = formatToYYYYMMDD(currentRange.endDate);
     
     const { data } = await supabase
       .from('permission_requests')
@@ -127,13 +147,13 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
     return permissionRequests.some(p => p.staff_id === workerId && p.request_date === dateStr);
   };
 
-  const getWeekDays = (): Date[] => {
-    if (!currentWeek) return [];
+  const getRangeDays = (): Date[] => {
+    if (!currentRange) return [];
     const days: Date[] = [];
-    for (let i = 0; i < 7; i++) {
-      const day = new Date(currentWeek.startDate);
-      day.setDate(currentWeek.startDate.getDate() + i);
-      days.push(day);
+    const start = new Date(currentRange.startDate);
+    const end = new Date(currentRange.endDate);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      days.push(new Date(d));
     }
     return days;
   };
@@ -186,21 +206,22 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
   };
   
   const exportToPDF = () => {
-    if (!currentWeek) return;
+    if (!currentRange) return;
     
     const doc = new jsPDF({ orientation: 'landscape' });
-    const weekDays = getWeekDays();
+    const days = getRangeDays();
+    const title = rangeMode === 'month' ? 'Monthly Attendance Report' : 'Weekly Attendance Report';
     
     doc.setFontSize(16);
-    doc.text(`Weekly Attendance Report`, 14, 15);
+    doc.text(title, 14, 15);
     doc.setFontSize(11);
-    doc.text(`${currentWeek.startDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} - ${currentWeek.endDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, 14, 22);
+    doc.text(`${currentRange.startDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} - ${currentRange.endDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, 14, 22);
     
-    const headers = ['Worker', ...weekDays.map(d => d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })), 'Total Hours', 'Total Late'];
+    const headers = ['Worker', ...days.map(d => d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })), 'Total Hours', 'Total Late'];
     
     const body = workers.map(worker => {
       const row = [worker.name];
-      weekDays.forEach(day => {
+      days.forEach(day => {
         const att = getAttendanceForDay(worker.id, day);
         const onBreak = isWorkerOnBreak(worker, day);
         const onPermission = hasPermission(worker.id, day);
@@ -218,7 +239,6 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
       });
       row.push(calculateTotalHours(worker.id));
       
-      // Add total late time
       const totalLate = calculateTotalLateMinutes(worker);
       row.push(totalLate > 0 ? formatLateTime(totalLate) : '-');
       
@@ -229,30 +249,31 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
       startY: 28,
       head: [headers],
       body,
-      styles: { fontSize: 8, cellPadding: 2 },
+      styles: { fontSize: rangeMode === 'month' ? 6 : 8, cellPadding: 2 },
       headStyles: { fillColor: [212, 175, 55] },
       columnStyles: { 0: { fontStyle: 'bold' } },
       didParseCell: (data: any) => {
         if (data.section === 'body' && data.column.index > 0) {
           const cellText = String(data.cell.raw || '');
           if (cellText === 'Absent') {
-            data.cell.styles.textColor = [220, 38, 38]; // red
+            data.cell.styles.textColor = [220, 38, 38];
             data.cell.styles.fontStyle = 'bold';
           } else if (cellText === 'Permission') {
-            data.cell.styles.textColor = [37, 99, 235]; // blue
+            data.cell.styles.textColor = [37, 99, 235];
             data.cell.styles.fontStyle = 'bold';
           } else if (cellText === 'Break') {
-            data.cell.styles.textColor = [59, 130, 246]; // lighter blue
+            data.cell.styles.textColor = [59, 130, 246];
             data.cell.styles.fontStyle = 'italic';
           }
         }
       },
     });
     
-    doc.save(`Weekly_Attendance_${formatToYYYYMMDD(currentWeek.startDate)}.pdf`);
+    const prefix = rangeMode === 'month' ? 'Monthly' : 'Weekly';
+    doc.save(`${prefix}_Attendance_${formatToYYYYMMDD(currentRange.startDate)}.pdf`);
   };
   
-  const weekDays = getWeekDays();
+  const rangeDays = getRangeDays();
   
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -260,23 +281,35 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-brand-gold" />
-            Weekly Attendance History
+            {rangeMode === 'month' ? 'Monthly' : 'Weekly'} Attendance History
           </DialogTitle>
         </DialogHeader>
         
         <div className="flex items-center justify-between gap-4 py-4">
-          <Select value={selectedWeek} onValueChange={setSelectedWeek}>
-            <SelectTrigger className="w-[280px]">
-              <SelectValue placeholder="Select week" />
-            </SelectTrigger>
-            <SelectContent className="bg-background z-50">
-              {weekOptions.map((option, index) => (
-                <SelectItem key={index} value={index.toString()}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select value={rangeMode} onValueChange={(v) => setRangeMode(v as 'week' | 'month')}>
+              <SelectTrigger className="w-[120px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50">
+                <SelectItem value="week">Weekly</SelectItem>
+                <SelectItem value="month">Monthly</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={selectedIndex} onValueChange={setSelectedIndex}>
+              <SelectTrigger className="w-[280px]">
+                <SelectValue placeholder="Select range" />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50">
+                {rangeOptions.map((option, index) => (
+                  <SelectItem key={index} value={index.toString()}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           
           <Button onClick={exportToPDF} className="gradient-gold text-brand-black gap-2">
             <Download className="w-4 h-4" />
@@ -294,10 +327,10 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
               <TableHeader>
                 <TableRow>
                   <TableHead className="sticky left-0 bg-background z-10">Worker</TableHead>
-                  {weekDays.map((day, i) => (
-                    <TableHead key={i} className="text-center min-w-[100px]">
-                      <div>{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                      <div className="text-xs text-muted-foreground">{day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                  {rangeDays.map((day, i) => (
+                    <TableHead key={i} className="text-center min-w-[60px]">
+                      <div className="text-[10px]">{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                      <div className="text-[9px] text-muted-foreground">{day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
                     </TableHead>
                   ))}
                   <TableHead className="text-center">Total</TableHead>
@@ -312,7 +345,7 @@ export function WeeklyHistoryModal({ open, onClose, workers, settings }: WeeklyH
                       <TableCell className="sticky left-0 bg-background z-10 font-medium">
                         {worker.name}
                       </TableCell>
-                      {weekDays.map((day, i) => {
+                      {rangeDays.map((day, i) => {
                         const att = getAttendanceForDay(worker.id, day);
                         const onBreak = isWorkerOnBreak(worker, day);
                         const onPermission = hasPermission(worker.id, day);
