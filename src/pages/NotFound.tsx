@@ -1,5 +1,7 @@
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { LogIn } from "lucide-react";
 
 const NotFound = () => {
   const location = useLocation();
@@ -9,13 +11,16 @@ const NotFound = () => {
   }, [location.pathname]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">404</h1>
-        <p className="mb-4 text-xl text-muted-foreground">Oops! Page not found</p>
-        <a href="/" className="text-primary underline hover:text-primary/90">
-          Return to Home
-        </a>
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="text-center space-y-4">
+        <h1 className="text-3xl font-bold text-foreground">You need to log in</h1>
+        <p className="text-muted-foreground">Please sign in to access this page.</p>
+        <Link to="/auth">
+          <Button className="gap-2 mt-2">
+            <LogIn className="w-4 h-4" />
+            Go to Login
+          </Button>
+        </Link>
       </div>
     </div>
   );
