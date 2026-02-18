@@ -15,6 +15,7 @@ import WorkerProfilePage from "./pages/WorkerProfilePage";
 import OwnerProfilePage from "./pages/OwnerProfilePage";
 import ScanPage from "./pages/ScanPage";
 import NotFound from "./pages/NotFound";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -30,12 +31,12 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<AuthPage />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/workers" element={<WorkersPage />} />
-                <Route path="/workers/:id" element={<WorkerProfilePage />} />
-                <Route path="/profile" element={<OwnerProfilePage />} />
-                <Route path="/scan" element={<ScanPage />} />
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+                <Route path="/workers" element={<ProtectedRoute><WorkersPage /></ProtectedRoute>} />
+                <Route path="/workers/:id" element={<ProtectedRoute><WorkerProfilePage /></ProtectedRoute>} />
+                <Route path="/profile" element={<ProtectedRoute><OwnerProfilePage /></ProtectedRoute>} />
+                <Route path="/scan" element={<ProtectedRoute><ScanPage /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
