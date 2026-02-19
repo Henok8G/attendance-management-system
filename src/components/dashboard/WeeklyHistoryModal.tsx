@@ -60,6 +60,27 @@ function getWeekOptions(): DateRangeOption[] {
   return options;
 }
 
+const ETHIOPIAN_MONTHS = [
+  'Meskerem', 'Tikimt', 'Hidar', 'Tahsas', 'Tir', 'Yekatit',
+  'Megabit', 'Miazia', 'Ginbot', 'Sene', 'Hamle', 'Nehase', 'Pagume'
+];
+
+function toEthiopianDate(gDate: Date): { year: number; month: number; day: number } {
+  const jdn = Math.floor(gDate.getTime() / 86400000 + 2440587.5);
+  const r = ((jdn - 1723856) % 1461);
+  const n = (r % 365) + 365 * Math.floor(r / 1460);
+  const year = 4 * Math.floor((jdn - 1723856) / 1461) + Math.floor(r / 365) - Math.floor(r / 1460);
+  const month = Math.floor(n / 30) + 1;
+  const day = (n % 30) + 1;
+  return { year, month, day };
+}
+
+function getEthiopianMonthLabel(gDate: Date): string {
+  const eth = toEthiopianDate(gDate);
+  const monthName = ETHIOPIAN_MONTHS[eth.month - 1] || 'Pagume';
+  return `${monthName} ${eth.year}`;
+}
+
 function getMonthOptions(): DateRangeOption[] {
   const options: DateRangeOption[] = [];
   const today = new Date();
@@ -68,11 +89,12 @@ function getMonthOptions(): DateRangeOption[] {
     const startDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
     const endDate = new Date(today.getFullYear(), today.getMonth() - i + 1, 0);
     
+    const ethLabel = getEthiopianMonthLabel(new Date(startDate.getFullYear(), startDate.getMonth(), 15));
     const label = i === 0 
-      ? 'This Month' 
+      ? `This Month (${ethLabel})` 
       : i === 1 
-        ? 'Last Month' 
-        : startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        ? `Last Month (${ethLabel})` 
+        : ethLabel;
     
     options.push({ label, startDate, endDate, type: 'month' });
   }
